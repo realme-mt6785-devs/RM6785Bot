@@ -1,8 +1,12 @@
 import type { BotContext, HandlerDescriptor } from "../types";
 import { getAuthorizedUsers } from "../utils/authUtils";
+import { getLogger } from "@logtape/logtape";
+
+const logger = getLogger(["RM6785Bot", "handlers", "lsauth"]);
 
 const lsauthHandler = async (ctx: BotContext) => {
   const authorizedUsers = await getAuthorizedUsers();
+  logger.info(`lsauth: listing ${authorizedUsers.length} authorized users`);
   let message = "Authorized users:\n";
   authorizedUsers.forEach((user) => {
     message += `[${user.name}](tg://user?id=${user.id})\n`;

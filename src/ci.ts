@@ -3,6 +3,9 @@ import { Octokit } from "@octokit/rest";
 import { bot } from "./index";
 import { GH_REPO_TOKEN } from "./config";
 import simpleGit from "simple-git";
+import { getLogger } from "@logtape/logtape";
+
+const logger = getLogger(["RM6785Bot", "ci"]);
 
 const git = simpleGit();
 const octokit = new Octokit({ auth: GH_REPO_TOKEN });
@@ -18,6 +21,9 @@ const restartBot = async () => {
   const chatId = "-1001801695556";
 
   try {
+    logger.info(
+      `restarting bot for commit ${latestRemoteCommit.substring(0, 7)}: ${latestCommitMessage}`
+    );
     await pullChanges();
 
     await bot.sendMessage(
@@ -37,7 +43,7 @@ const restartBot = async () => {
     process.exit(0);
   } catch (error) {
     const err = error as Error;
-    console.error(`Failed to restart bot: ${err.message}`);
+    logger.error(`Failed to restart bot: ${err.message}`);
     await bot.sendMessage(chatId, `Failed to restart bot: ${err.message}`);
   }
 };
@@ -57,18 +63,15 @@ const commitListener = async () => {
       const localCommitHead = await git.revparse(["HEAD"]);
 
       if (latestRemoteCommit !== localCommitHead) {
-        console.log(
-          `${latestRemoteCommit.substring(
-            0,
-            7
-          )}: ${latestCommitMessage}\nRestarting the bot`
+        logger.info(
+          `new remote commit detected ${latestRemoteCommit.substring(0, 7)} (local ${localCommitHead.substring(0, 7)}): ${latestCommitMessage}`
         );
         restartBot();
       }
     }
   } catch (error) {
     const err = error as Error;
-    console.error("Failed to fetch remote commits:", err);
+    logger.error(`Failed to fetch remote commits: ${err.message}`);
   }
 };
 

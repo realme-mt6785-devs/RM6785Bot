@@ -1,4 +1,7 @@
 import type { MessageEntity } from "node-telegram-bot-api";
+import { getLogger } from "@logtape/logtape";
+
+const logger = getLogger(["RM6785Bot", "utils", "lintUtils"]);
 
 const lintTelegramPost = (
   text: string,
@@ -302,6 +305,10 @@ ${validateFooter()}`;
   const lintResult = lintStatus
     ? "# Seems good 🤌\nBot approves"
     : `# ERRORS\n${errors}`;
+
+  logger.debug(
+    `lintTelegramPost: kernel=${KERNEL} status=${lintStatus ? "pass" : "fail"} hashtags=${hashtags.length}`
+  );
 
   return [lintResult, lintStatus];
 };

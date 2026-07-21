@@ -1,6 +1,9 @@
 import type { BotContext, HandlerDescriptor } from "../types";
 import lintTelegramPost from "../utils/lintUtils";
 import { handler as voteHandler } from "./vote";
+import { getLogger } from "@logtape/logtape";
+
+const logger = getLogger(["RM6785Bot", "handlers", "lint"]);
 
 const lintHandler = async (ctx: BotContext) => {
   if (!ctx.message.reply_to_message) return;
@@ -8,6 +11,9 @@ const lintHandler = async (ctx: BotContext) => {
   const replyMsg = ctx.message.reply_to_message;
 
   if (!("caption" in replyMsg) || !replyMsg.caption) {
+    logger.debug(
+      `lint: no caption/banner on replied message=${replyMsg.message_id}`
+    );
     await ctx.bot.sendRichMessage(
       ctx.message.chat.id,
       {
@@ -29,6 +35,10 @@ const lintHandler = async (ctx: BotContext) => {
       : []
   );
 
+  logger.info(
+    `lint: message=${replyMsg.message_id} lint ${lintSuccessful ? "passed" : "failed"}`
+  );
+
   await ctx.bot.sendRichMessage(
     ctx.message.chat.id,
     { markdown: lintResult },
@@ -38,6 +48,9 @@ const lintHandler = async (ctx: BotContext) => {
   );
 
   if (lintSuccessful) {
+    logger.debug(
+      `lint: auto-casting bot vote for message=${replyMsg.message_id}`
+    );
     const voteCommandCtx: BotContext = {
       ...ctx,
       message: {

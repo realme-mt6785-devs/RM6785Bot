@@ -15,6 +15,9 @@ import {
 } from "../constants";
 import { replyToMessage } from "../utils/contextUtils";
 import { InputMediaPhoto, Message } from "node-telegram-bot-api";
+import { getLogger } from "@logtape/logtape";
+
+const logger = getLogger(["RM6785Bot", "handlers", "post"]);
 
 const postHandler = async (ctx: BotContext) => {
   if (!ctx.message.reply_to_message || !ctx.message.text) return;
@@ -29,6 +32,10 @@ const postHandler = async (ctx: BotContext) => {
     timeoutInMs = timeoutInMinutes * 60000;
   }
 
+  logger.info(
+    `post: requested for message=${messageId} votes=${votes}/${MAX_VOTES} timeout=${timeoutInMs / 60000}m testMode=${TEST_MODE}`
+  );
+
   if (!messageInfo[messageId]) {
     messageInfo[messageId] = {};
   }
@@ -36,6 +43,7 @@ const postHandler = async (ctx: BotContext) => {
   const msg = messageInfo[messageId];
 
   if (msg.isPosted) {
+    logger.warn(`post: message=${messageId} already scheduled, ignoring`);
     await replyToMessage(
       ctx,
       "This message has already been scheduled for posting."
@@ -44,6 +52,9 @@ const postHandler = async (ctx: BotContext) => {
   }
 
   if (!TEST_MODE && !hasEnoughVotes(messageId)) {
+    logger.info(
+      `post: message=${messageId} lacks approvals (${votes}/${MAX_VOTES}), rejecting`
+    );
     await replyToMessage(
       ctx,
       `This message does not have enough approvals (${votes}/${MAX_VOTES})`
@@ -68,6 +79,10 @@ const postHandler = async (ctx: BotContext) => {
 
     msg.stickerMessageId = sentSticker.message_id;
     msg.countdownMessageId = countdown.message_id;
+
+    logger.debug(
+      `post: sent sticker=${sentSticker.message_id} countdown=${countdown.message_id} for message=${messageId}`
+    );
 
     const sentMessage = await replyToMessage(
       ctx,
@@ -96,6 +111,7 @@ const postHandler = async (ctx: BotContext) => {
       }
 
       if (secondsLeft <= 0) {
+        logger.info(`post: countdown elapsed, publishing message=${messageId}`);
         const editedCountdown = (await ctx.bot.editMessageMedia(
           {
             type: "photo",
@@ -122,12 +138,18 @@ const postHandler = async (ctx: BotContext) => {
               editedCountdown.message_id
             );
             await ctx.bot.pinChatMessage(toChat, forwardedMsg.message_id);
+            logger.debug(
+              `post: forwarded+pinned message from chat=${fromChat} to chat=${toChat}`
+            );
           };
 
           await forwardAndPin(TELEGRAM_RM6785_CHANNEL, TELEGRAM_RM6785_CHAT);
           await forwardAndPin(TELEGRAM_RM6785_CHANNEL, TELEGRAM_R7_CHAT);
+          logger.info(`post: message=${messageId} published and pinned`);
         } catch (error) {
-          console.error(error);
+          logger.error(
+            `post: failed to forward/pin message=${messageId}: ${(error as Error).message}`
+          );
         }
       } else {
         msg.timeoutId = setTimeout(countdownTimeout, 1000);
@@ -139,7 +161,9 @@ const postHandler = async (ctx: BotContext) => {
     const timeoutId = setTimeout(countdownTimeout, 1000);
     msg.timeoutId = timeoutId;
   } catch (error) {
-    console.error(error);
+    logger.error(
+      `post: failed to schedule message=${messageId}: ${(error as Error).message}`
+    );
   }
 };
 

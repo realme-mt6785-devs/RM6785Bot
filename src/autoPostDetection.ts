@@ -10,6 +10,9 @@ import { handler as lsauthHandler } from "./handlers/lsauth";
 import { handler as lintHandler } from "./handlers/lint";
 import type { BotContext } from "./types";
 import { replyToMessage } from "./utils/contextUtils";
+import { getLogger } from "@logtape/logtape";
+
+const logger = getLogger(["RM6785Bot", "autoPostDetection"]);
 
 const setupAutoPostDetection = (bot: TelegramBot, botInfo: { id: number }) => {
   bot.on("message", async (msg) => {
@@ -27,6 +30,9 @@ const setupAutoPostDetection = (bot: TelegramBot, botInfo: { id: number }) => {
       msg.caption.search("#ROM") !== -1 ||
       msg.caption.search("#KERNEL") !== -1
     ) {
+      logger.info(
+        `detected post in chat=${msg.chat.id} (${msg.chat.type}) message=${msg.message_id}`
+      );
       const replyMsg = {
         message_id: msg.message_id,
         date: msg.date,
@@ -46,6 +52,9 @@ const setupAutoPostDetection = (bot: TelegramBot, botInfo: { id: number }) => {
           replyMsg.caption!,
           (replyMsg as any).caption_entities ?? []
         );
+        logger.info(
+          `private post from chat=${msg.chat.id}: lint ${lintSuccessful ? "passed" : "failed"}`
+        );
         await bot.sendRichMessage(
           msg.chat.id,
           { markdown: lintResult },
@@ -56,6 +65,9 @@ const setupAutoPostDetection = (bot: TelegramBot, botInfo: { id: number }) => {
         if (lintSuccessful) {
           const userRequests = updateUserRequest(msg.chat.id);
           if (userRequests > MAX_REQUESTS) {
+            logger.warn(
+              `spam detected from chat=${msg.chat.id} (${userRequests}/${MAX_REQUESTS} requests)`
+            );
             await bot.sendMessage(
               msg.chat.id,
               `Spam detected, Try again after ${
@@ -65,6 +77,9 @@ const setupAutoPostDetection = (bot: TelegramBot, botInfo: { id: number }) => {
             return;
           }
 
+          logger.info(
+            `forwarding post message=${msg.message_id} from chat=${msg.chat.id} to release chat for approval`
+          );
           await bot.forwardMessage(
             TELEGRAM_RELEASE_CHAT,
             msg.chat.id,
@@ -82,6 +97,9 @@ const setupAutoPostDetection = (bot: TelegramBot, botInfo: { id: number }) => {
           await lsauthHandler.execute(updatedCtx);
         }
       } else {
+        logger.debug(
+          `running lint handler on post message=${msg.message_id} in chat=${msg.chat.id}`
+        );
         const lintCtx: BotContext = {
           ...ctx,
           message: {

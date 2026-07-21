@@ -1,6 +1,9 @@
 import type { BotContext, HandlerDescriptor } from "../types";
 import { removeAuthorizedUser } from "../utils/authUtils";
 import { replyToMessage } from "../utils/contextUtils";
+import { getLogger } from "@logtape/logtape";
+
+const logger = getLogger(["RM6785Bot", "handlers", "rmauth"]);
 
 const rmauthHandler = async (ctx: BotContext) => {
   if (!ctx.message.reply_to_message) return;
@@ -9,14 +12,17 @@ const rmauthHandler = async (ctx: BotContext) => {
   if (!replyMsg.from) return;
 
   const user = replyMsg.from;
+  logger.info(`rmauth: attempting to remove user id=${user.id}`);
   const removed = await removeAuthorizedUser(user.id);
 
   if (removed) {
+    logger.info(`rmauth: removed user id=${user.id}`);
     await replyToMessage(
       ctx,
       `@${user.username || user.first_name} has been removed from the authorized users.`
     );
   } else {
+    logger.debug(`rmauth: user id=${user.id} not in authorized list`);
     await replyToMessage(ctx, "This user is not in the authorized users list.");
   }
 };

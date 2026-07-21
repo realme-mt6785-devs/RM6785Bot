@@ -36,16 +36,6 @@ await configure({
       sinks: ["console"],
     },
     {
-      category: ["RM6785Bot", "handlers"],
-      lowestLevel: "debug",
-      sinks: ["console"],
-    },
-    {
-      category: ["RM6785Bot", "utils"],
-      lowestLevel: "debug",
-      sinks: ["console"],
-    },
-    {
       category: ["dependency"],
       lowestLevel: "debug",
       sinks: ["console"],
@@ -54,6 +44,8 @@ await configure({
 });
 
 const logger = getLogger(["RM6785Bot"]);
+
+logger.info(`authenticated as bot id=${me.id} username=@${me.username}`);
 
 function compose(
   middlewares: Middleware.Middleware[]
@@ -101,7 +93,20 @@ for (const handlerFile of handlerFiles) {
   const commandHandler = compose([
     ...middlewares,
     async (ctx) => {
-      await handler.execute(ctx);
+      const userId = ctx.message.from?.id;
+      const chatId = ctx.message.chat.id;
+      logger.info(
+        `dispatching '${handler.command}' from user=${userId ?? "unknown"} chat=${chatId}`
+      );
+      try {
+        await handler.execute(ctx);
+        logger.debug(`handler '${handler.command}' completed`);
+      } catch (error) {
+        logger.error(
+          `handler '${handler.command}' threw: ${(error as Error).message}`
+        );
+        throw error;
+      }
     },
   ]);
 

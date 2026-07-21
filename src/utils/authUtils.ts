@@ -1,5 +1,8 @@
 import { Octokit } from "@octokit/rest";
 import { GIST_ID, GIST_TOKEN } from "../config";
+import { getLogger } from "@logtape/logtape";
+
+const logger = getLogger(["RM6785Bot", "utils", "authUtils"]);
 
 const octokit = new Octokit({ auth: GIST_TOKEN });
 
@@ -16,13 +19,20 @@ export const getAuthorizedUsers = async (): Promise<AuthorizedUser[]> => {
     if (files && "auth.json" in files) {
       const gistFile = files["auth.json"];
       if (gistFile && gistFile.content && gistFile.content.trim().length > 0) {
-        return JSON.parse(gistFile.content) as AuthorizedUser[];
+        const users = JSON.parse(gistFile.content) as AuthorizedUser[];
+        logger.debug(
+          `getAuthorizedUsers: loaded ${users.length} users from gist`
+        );
+        return users;
       }
     }
 
+    logger.warn("getAuthorizedUsers: auth.json missing/empty, using fallback");
     return [{ id: 1138003186, name: "SamarV-121" }];
   } catch (error) {
-    console.error("Error fetching Gist data:", error);
+    logger.error(
+      `getAuthorizedUsers: error fetching gist: ${(error as Error).message}`
+    );
     return [];
   }
 };
@@ -39,9 +49,14 @@ export const uploadAuthorizedUsers = async (
         },
       },
     });
+    logger.debug(
+      `uploadAuthorizedUsers: uploaded ${jsonData.length} users to gist`
+    );
     return data.id as string;
   } catch (error) {
-    console.error("Error uploading Gist data:", error);
+    logger.error(
+      `uploadAuthorizedUsers: error uploading gist: ${(error as Error).message}`
+    );
     return false;
   }
 };

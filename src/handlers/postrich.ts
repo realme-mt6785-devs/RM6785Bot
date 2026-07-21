@@ -16,6 +16,9 @@ import {
 import { replyToMessage } from "../utils/contextUtils";
 import type { Message } from "node-telegram-bot-api";
 import { parsePostAndConstructRichMarkdown } from "../utils/postParser";
+import { getLogger } from "@logtape/logtape";
+
+const logger = getLogger(["RM6785Bot", "handlers", "postrich"]);
 
 const postrichHandler = async (ctx: BotContext) => {
   if (!ctx.message.reply_to_message || !ctx.message.text) return;
@@ -25,6 +28,7 @@ const postrichHandler = async (ctx: BotContext) => {
   const votes = currentVotes(messageId);
   const mText = ctx.message.text?.split(" ");
   if (mText.length < 3) {
+    logger.debug("postrich: not enough args provided");
     await replyToMessage(ctx, "Not enough arg");
     return;
   }
@@ -36,6 +40,10 @@ const postrichHandler = async (ctx: BotContext) => {
   }
   const bannerLink = mText[2];
 
+  logger.info(
+    `postrich: requested for message=${messageId} votes=${votes}/${MAX_VOTES} timeout=${timeoutInMs / 60000}m banner=${bannerLink} testMode=${TEST_MODE}`
+  );
+
   if (!messageInfo[messageId]) {
     messageInfo[messageId] = {};
   }
@@ -43,6 +51,7 @@ const postrichHandler = async (ctx: BotContext) => {
   const msg = messageInfo[messageId];
 
   if (msg.isPosted) {
+    logger.warn(`postrich: message=${messageId} already scheduled, ignoring`);
     await replyToMessage(
       ctx,
       "This message has already been scheduled for posting."
@@ -51,6 +60,9 @@ const postrichHandler = async (ctx: BotContext) => {
   }
 
   if (!TEST_MODE && !hasEnoughVotes(messageId)) {
+    logger.info(
+      `postrich: message=${messageId} lacks approvals (${votes}/${MAX_VOTES}), rejecting`
+    );
     await replyToMessage(
       ctx,
       `This message does not have enough approvals (${votes}/${MAX_VOTES})`
@@ -80,6 +92,10 @@ const postrichHandler = async (ctx: BotContext) => {
     msg.stickerMessageId = sentSticker.message_id;
     msg.countdownMessageId = richCountdown.message_id;
 
+    logger.debug(
+      `postrich: sent sticker=${sentSticker.message_id} countdown=${richCountdown.message_id} for message=${messageId}`
+    );
+
     const sentMessage = await replyToMessage(
       ctx,
       `Scheduled to post in ${timeoutInMs / 60000}m`
@@ -108,9 +124,16 @@ const postrichHandler = async (ctx: BotContext) => {
       }
 
       if (secondsLeft <= 0) {
-        console.log(m);
+        logger.info(
+          `postrich: countdown elapsed, publishing message=${messageId}`
+        );
         const richMarkdown = parsePostAndConstructRichMarkdown(m, bannerLink);
-        if (!richMarkdown) return;
+        if (!richMarkdown) {
+          logger.error(
+            `postrich: failed to parse rich markdown for message=${messageId}, aborting publish`
+          );
+          return;
+        }
 
         await ctx.bot.deleteMessage(
           TELEGRAM_RM6785_CHANNEL,
@@ -139,12 +162,18 @@ const postrichHandler = async (ctx: BotContext) => {
               sentPostMessage.message_id
             );
             await ctx.bot.pinChatMessage(toChat, forwardedMsg.message_id);
+            logger.debug(
+              `postrich: forwarded+pinned message from chat=${fromChat} to chat=${toChat}`
+            );
           };
 
           await forwardAndPin(TELEGRAM_RM6785_CHANNEL, TELEGRAM_RM6785_CHAT);
           await forwardAndPin(TELEGRAM_RM6785_CHANNEL, TELEGRAM_R7_CHAT);
+          logger.info(`postrich: message=${messageId} published and pinned`);
         } catch (error) {
-          console.error(error);
+          logger.error(
+            `postrich: failed to forward/pin message=${messageId}: ${(error as Error).message}`
+          );
         }
       } else {
         msg.timeoutId = setTimeout(
@@ -164,7 +193,9 @@ const postrichHandler = async (ctx: BotContext) => {
     );
     msg.timeoutId = timeoutId;
   } catch (error) {
-    console.error(error);
+    logger.error(
+      `postrich: failed to schedule message=${messageId}: ${(error as Error).message}`
+    );
   }
 };
 

@@ -2,6 +2,9 @@ import type { BotContext, HandlerDescriptor } from "../types";
 import { TELEGRAM_RM6785_CHANNEL } from "../constants";
 import { messageInfo } from "../utils/messageUtils";
 import { replyToMessage } from "../utils/contextUtils";
+import { getLogger } from "@logtape/logtape";
+
+const logger = getLogger(["RM6785Bot", "handlers", "cancel"]);
 
 const cancelHandler = async (ctx: BotContext) => {
   if (!ctx.message.reply_to_message) return;
@@ -10,6 +13,7 @@ const cancelHandler = async (ctx: BotContext) => {
   const msg = messageInfo[messageId];
 
   if (msg?.stickerMessageId && msg?.countdownMessageId) {
+    logger.info(`cancel: cancelling scheduled post for message=${messageId}`);
     clearTimeout(msg.timeoutId as ReturnType<typeof setTimeout>);
 
     try {
@@ -22,12 +26,16 @@ const cancelHandler = async (ctx: BotContext) => {
       msg.sentMessageId = null;
       msg.timeoutId = null;
 
+      logger.info(`cancel: scheduled post cancelled for message=${messageId}`);
       await replyToMessage(ctx, "Successfully cancelled the scheduled post.");
     } catch (error) {
-      console.error(error);
+      logger.error(
+        `cancel: failed to cancel message=${messageId}: ${(error as Error).message}`
+      );
       await replyToMessage(ctx, "Failed to cancel the scheduled post.");
     }
   } else {
+    logger.debug(`cancel: no scheduled post found for message=${messageId}`);
     await replyToMessage(ctx, "No scheduled post found to cancel.");
   }
 };

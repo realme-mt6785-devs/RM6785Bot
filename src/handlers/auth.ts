@@ -1,6 +1,9 @@
 import type { BotContext, HandlerDescriptor } from "../types";
 import { addAuthorizedUser } from "../utils/authUtils";
 import { replyToMessage } from "../utils/contextUtils";
+import { getLogger } from "@logtape/logtape";
+
+const logger = getLogger(["RM6785Bot", "handlers", "auth"]);
 
 const authHandler = async (ctx: BotContext) => {
   if (!ctx.message.reply_to_message) return;
@@ -9,6 +12,9 @@ const authHandler = async (ctx: BotContext) => {
   if (!replyMsg.from) return;
 
   const user = replyMsg.from;
+  logger.info(
+    `auth: attempting to authorize user id=${user.id} username=@${user.username ?? user.first_name}`
+  );
   const authorized = await addAuthorizedUser({
     id: user.id,
     username: user.username,
@@ -17,11 +23,13 @@ const authHandler = async (ctx: BotContext) => {
   });
 
   if (authorized) {
+    logger.info(`auth: authorized user id=${user.id}`);
     await replyToMessage(
       ctx,
       `@${user.username || user.first_name} has been authorized to use the bot.`
     );
   } else {
+    logger.debug(`auth: user id=${user.id} already authorized`);
     await replyToMessage(ctx, "This user is already authorized.");
   }
 };
