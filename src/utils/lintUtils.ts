@@ -14,6 +14,7 @@ const lintTelegramPost = (
   let boldBugs = false;
   let boldDownloads = false;
   let hashtags: string[] = [];
+  let device: string | null = null;
 
   const validateHashtags = (): string => {
     let errorMessage = "";
@@ -69,6 +70,8 @@ const lintTelegramPost = (
       } else {
         errorMessage += `- Incorrect device mentioned on the fourth hashtag. (RM6785/RMX2001/RMX2151/salaa)\n`;
       }
+    } else {
+      device = TAG_DEVICE;
     }
 
     if (!KERNEL && !ANDROID_VERSION.includes(TAG_ANDROID_VER)) {
@@ -110,11 +113,14 @@ const lintTelegramPost = (
   };
 
   const validateTitle = (): string => {
-    const validTitles = [
-      "for Realme 6/6i(Indian)/6s/7/Narzo/Narzo 20 Pro/Narzo 30 4G",
-      "for Realme 6/6i(Indian)/6s/Narzo ONLY",
-      "for Realme 7/Narzo 20 Pro/Narzo 30 4G ONLY",
-    ];
+    const validTitles = {
+      RM6785:
+        "for Realme 6/6i(Indian)/6s/7/Narzo/Narzo 20 Pro/Narzo 30 4G [STABLE/BETA/ALPHA]",
+      nemo: "for Realme 6/6i(Indian)/6s/Narzo ONLY [STABLE/BETA/ALPHA]",
+      RMX2001: "for Realme 6/6i(Indian)/6s/Narzo ONLY [STABLE/BETA/ALPHA]",
+      salaa: "for Realme 7/Narzo 20 Pro/Narzo 30 4G ONLY [STABLE/BETA/ALPHA]",
+      RMX2151: "for Realme 7/Narzo 20 Pro/Narzo 30 4G ONLY [STABLE/BETA/ALPHA]",
+    };
     let errorMessage = "";
     const titleNewlines = text
       .slice(
@@ -133,14 +139,35 @@ const lintTelegramPost = (
       .match(/\n/g);
 
     let title: string | null;
-    try {
-      title = text.match(/.*\w+(?= +for).*/)?.[0] ?? null;
-    } catch {
-      title = null;
+    switch (device) {
+      case "RM6785":
+        title =
+          text.match(
+            /.* for Realme 6\/6i\(Indian\)\/6s\/7\/Narzo\/Narzo 20 Pro\/Narzo 30 4G \[(STABLE|BETA|ALPHA)\]/
+          )?.[0] ?? null;
+        break;
+      case "nemo":
+      case "RMX2001":
+        title =
+          text.match(
+            /.* for Realme 6\/6i\(Indian\)\/6s\/Narzo ONLY \[(STABLE|BETA|ALPHA)\]/
+          )?.[0] ?? null;
+        break;
+      case "salaa":
+      case "RMX2151":
+        title =
+          text.match(
+            /.* for Realme 7\/Narzo 20 Pro\/Narzo 30 4G ONLY \[(STABLE|BETA|ALPHA)\]/
+          )?.[0] ?? null;
+        break;
+      case null:
+        return "\nTitle:\n- Cannot be validated because of hashtag errors\n";
+      default:
+        title = null;
     }
 
     if (!title) {
-      return "Title:\n- No title found.";
+      return `\nTitle:\n- No title or invalid title found. Based on your hashtag, it should be ${validTitles[device as keyof typeof validTitles]}\n`;
     }
 
     if (titleNewlines?.length !== 2) {
@@ -149,15 +176,6 @@ const lintTelegramPost = (
 
     if (!boldTitle) {
       errorMessage += "- Missing bold format on title\n";
-    }
-
-    if (!validTitles.some((aValidTitle) => title!.includes(aValidTitle))) {
-      errorMessage += "- Missing or incorrect order of device in title.\n";
-    }
-
-    if (!title.match(/\[([^\]]+)\]$/)) {
-      errorMessage +=
-        "- Missing build's stability stage. (ALPHA/BETA/STABLE)\n";
     }
 
     return errorMessage ? `\n## Title:\n${errorMessage}` : "";
