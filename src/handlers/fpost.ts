@@ -1,8 +1,10 @@
-import type { BotContext, HandlerDescriptor } from "../types";
-import { handler as postHandler } from "./post";
-import { messageInfo } from "../utils/messageUtils";
-import { MAX_VOTES } from "../constants";
 import { getLogger } from "@logtape/logtape";
+
+import type { BotContext, HandlerDescriptor } from "../types";
+
+import { MAX_VOTES } from "../constants";
+import { messageInfo } from "../utils/messageUtils";
+import { handler as postHandler } from "./post";
 
 const logger = getLogger(["RM6785Bot", "handlers", "fpost"]);
 
@@ -13,7 +15,7 @@ const fpostHandler = async (ctx: BotContext) => {
   const oldMessageInfo = messageInfo[messageId];
 
   logger.info(
-    `fpost: force-posting message=${messageId}, injecting ${MAX_VOTES} synthetic votes`
+    `fpost: force-posting message=${messageId}, injecting ${MAX_VOTES} synthetic votes`,
   );
 
   if (!messageInfo[messageId]) {

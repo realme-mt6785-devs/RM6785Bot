@@ -1,5 +1,6 @@
-import { TELEGRAM_RM6785_CHANNEL } from "./src/constants";
 import { TelegramBot } from "node-telegram-bot-api";
+
+import { TELEGRAM_RM6785_CHANNEL } from "./src/constants";
 
 export const BOT_TOKEN = process.env.BOT_TOKEN;
 if (!BOT_TOKEN) throw new Error("please set BOT_TOKEN");

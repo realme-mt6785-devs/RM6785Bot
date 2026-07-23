@@ -1,6 +1,8 @@
-import type { BotContext, HandlerDescriptor } from "../types";
-import { parsePostAndConstructRichMarkdown } from "../utils/postParser";
 import { getLogger } from "@logtape/logtape";
+
+import type { BotContext, HandlerDescriptor } from "../types";
+
+import { parsePostAndConstructRichMarkdown } from "../utils/postParser";
 
 const logger = getLogger(["RM6785Bot", "handlers", "lintrich"]);
 
@@ -11,7 +13,7 @@ const lintHandler = async (ctx: BotContext) => {
 
   if (!("caption" in replyMsg) || !replyMsg.caption) {
     logger.debug(
-      `lintrich: no caption/banner on replied message=${replyMsg.message_id}`
+      `lintrich: no caption/banner on replied message=${replyMsg.message_id}`,
     );
     await ctx.bot.sendRichMessage(
       ctx.message.chat.id,
@@ -21,18 +23,18 @@ const lintHandler = async (ctx: BotContext) => {
       },
       {
         reply_parameters: { message_id: replyMsg.message_id },
-      }
+      },
     );
     return;
   }
 
   const result = parsePostAndConstructRichMarkdown(
-    ctx.message.reply_to_message
+    ctx.message.reply_to_message,
   );
   const lintResultMarkdown = result !== undefined ? "# successful" : "# failed";
 
   logger.info(
-    `lintrich: rich parse of message=${replyMsg.message_id} ${result !== undefined ? "succeeded" : "failed"}`
+    `lintrich: rich parse of message=${replyMsg.message_id} ${result !== undefined ? "succeeded" : "failed"}`,
   );
 
   await ctx.bot.sendRichMessage(
@@ -40,7 +42,7 @@ const lintHandler = async (ctx: BotContext) => {
     { markdown: lintResultMarkdown },
     {
       reply_parameters: { message_id: replyMsg.message_id },
-    }
+    },
   );
 };
 

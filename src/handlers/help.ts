@@ -1,6 +1,8 @@
-import type { BotContext, HandlerDescriptor } from "../types";
-import { replyToMessage } from "../utils/contextUtils";
 import { getLogger } from "@logtape/logtape";
+
+import type { BotContext, HandlerDescriptor } from "../types";
+
+import { replyToMessage } from "../utils/contextUtils";
 
 const logger = getLogger(["RM6785Bot", "handlers", "help"]);
 

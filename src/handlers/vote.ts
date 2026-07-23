@@ -1,13 +1,15 @@
+import { getLogger } from "@logtape/logtape";
+
 import type { BotContext, HandlerDescriptor } from "../types";
+
+import { MAX_VOTES } from "../constants";
+import { replyToMessage } from "../utils/contextUtils";
 import {
   hasUserVoted,
   hasEnoughVotes,
   currentVotes,
   messageInfo,
 } from "../utils/messageUtils";
-import { MAX_VOTES } from "../constants";
-import { replyToMessage } from "../utils/contextUtils";
-import { getLogger } from "@logtape/logtape";
 
 const logger = getLogger(["RM6785Bot", "handlers", "vote"]);
 
@@ -24,19 +26,19 @@ const voteHandler = async (ctx: BotContext) => {
     logger.info(`vote: user=${userId} already voted for message=${messageId}`);
     await replyToMessage(
       ctx,
-      `User $${userId}$ has already voted for this message.`
+      `User $${userId}$ has already voted for this message.`,
     );
     return;
   }
 
   if (hasEnoughVotes(messageId)) {
     logger.info(
-      `vote: message=${messageId} already has enough approvals, rejecting vote from user=${userId}`
+      `vote: message=${messageId} already has enough approvals, rejecting vote from user=${userId}`,
     );
     await replyToMessage(
       ctx,
       "This post already has enough approvals.\n\n" +
-        `$$${MAX_VOTES}/${MAX_VOTES}$$\n\n<aside>Approval Counts<cite>Vote Failed</cite></aside>`
+        `$$${MAX_VOTES}/${MAX_VOTES}$$\n\n<aside>Approval Counts<cite>Vote Failed</cite></aside>`,
     );
     return;
   }
@@ -50,12 +52,12 @@ const voteHandler = async (ctx: BotContext) => {
   const votes = currentVotes(messageId);
 
   logger.info(
-    `vote: recorded vote from user=${userId} on message=${messageId} (${votes}/${MAX_VOTES})`
+    `vote: recorded vote from user=${userId} on message=${messageId} (${votes}/${MAX_VOTES})`,
   );
 
   await replyToMessage(
     ctx,
-    `$$${votes}/${MAX_VOTES}$$\n\n<aside>Approval Counts<cite>Vote Successful</cite></aside>`
+    `$$${votes}/${MAX_VOTES}$$\n\n<aside>Approval Counts<cite>Vote Successful</cite></aside>`,
   );
 };
 

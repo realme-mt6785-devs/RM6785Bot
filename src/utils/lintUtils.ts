@@ -1,11 +1,12 @@
 import type { MessageEntity } from "node-telegram-bot-api";
+
 import { getLogger } from "@logtape/logtape";
 
 const logger = getLogger(["RM6785Bot", "utils", "lintUtils"]);
 
 const lintTelegramPost = (
   text: string,
-  entities: MessageEntity[]
+  entities: MessageEntity[],
 ): [string, boolean] => {
   let KERNEL = false;
   let boldTitle = false;
@@ -100,7 +101,7 @@ const lintTelegramPost = (
       else if (word.includes("Downloads")) boldDownloads = true;
       else if (
         word.includes(
-          "for Realme 6/6i(Indian)/6s/7/Narzo/Narzo 20 Pro/Narzo 30 4G"
+          "for Realme 6/6i(Indian)/6s/7/Narzo/Narzo 20 Pro/Narzo 30 4G",
         ) ||
         word.includes("for Realme 6/6i(Indian)/6s/Narzo ONLY") ||
         word.includes("for Realme 7/Narzo 20 Pro/Narzo 30 4G ONLY")
@@ -125,16 +126,16 @@ const lintTelegramPost = (
     const titleNewlines = text
       .slice(
         text.lastIndexOf(hashtags[hashtags.length - 1]) +
-          hashtags[hashtags.length - 1]?.length
+          hashtags[hashtags.length - 1]?.length,
       )
       .slice(
         0,
         text
           .slice(
             text.lastIndexOf(hashtags[hashtags.length - 1]) +
-              hashtags[hashtags.length - 1]?.length
+              hashtags[hashtags.length - 1]?.length,
           )
-          .search(/\S/)
+          .search(/\S/),
       )
       .match(/\n/g);
 
@@ -143,21 +144,21 @@ const lintTelegramPost = (
       case "RM6785":
         title =
           text.match(
-            /.* for Realme 6\/6i\(Indian\)\/6s\/7\/Narzo\/Narzo 20 Pro\/Narzo 30 4G \[(STABLE|BETA|ALPHA)\]/
+            /.* for Realme 6\/6i\(Indian\)\/6s\/7\/Narzo\/Narzo 20 Pro\/Narzo 30 4G \[(STABLE|BETA|ALPHA)\]/,
           )?.[0] ?? null;
         break;
       case "nemo":
       case "RMX2001":
         title =
           text.match(
-            /.* for Realme 6\/6i\(Indian\)\/6s\/Narzo ONLY \[(STABLE|BETA|ALPHA)\]/
+            /.* for Realme 6\/6i\(Indian\)\/6s\/Narzo ONLY \[(STABLE|BETA|ALPHA)\]/,
           )?.[0] ?? null;
         break;
       case "salaa":
       case "RMX2151":
         title =
           text.match(
-            /.* for Realme 7\/Narzo 20 Pro\/Narzo 30 4G ONLY \[(STABLE|BETA|ALPHA)\]/
+            /.* for Realme 7\/Narzo 20 Pro\/Narzo 30 4G ONLY \[(STABLE|BETA|ALPHA)\]/,
           )?.[0] ?? null;
         break;
       case null:
@@ -209,7 +210,7 @@ const lintTelegramPost = (
 
     if (
       !text.match(
-        /\n• Build date: (0?[1-9]|[12][0-9]|3[01])-(0?[1-9]|1[0-2])-\d{4}/
+        /\n• Build date: (0?[1-9]|[12][0-9]|3[01])-(0?[1-9]|1[0-2])-\d{4}/,
       )
     ) {
       errorMessage += "- Invalid build date info (Required format: DD-MM-YY)\n";
@@ -325,7 +326,7 @@ ${validateFooter()}`;
     : `# ERRORS\n${errors}`;
 
   logger.debug(
-    `lintTelegramPost: kernel=${KERNEL} status=${lintStatus ? "pass" : "fail"} hashtags=${hashtags.length}`
+    `lintTelegramPost: kernel=${KERNEL} status=${lintStatus ? "pass" : "fail"} hashtags=${hashtags.length}`,
   );
 
   return [lintResult, lintStatus];

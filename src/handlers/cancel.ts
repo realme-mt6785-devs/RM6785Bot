@@ -1,8 +1,10 @@
-import type { BotContext, HandlerDescriptor } from "../types";
-import { TELEGRAM_RM6785_CHANNEL } from "../constants";
-import { messageInfo } from "../utils/messageUtils";
-import { replyToMessage } from "../utils/contextUtils";
 import { getLogger } from "@logtape/logtape";
+
+import type { BotContext, HandlerDescriptor } from "../types";
+
+import { TELEGRAM_RM6785_CHANNEL } from "../constants";
+import { replyToMessage } from "../utils/contextUtils";
+import { messageInfo } from "../utils/messageUtils";
 
 const logger = getLogger(["RM6785Bot", "handlers", "cancel"]);
 
@@ -30,7 +32,7 @@ const cancelHandler = async (ctx: BotContext) => {
       await replyToMessage(ctx, "Successfully cancelled the scheduled post.");
     } catch (error) {
       logger.error(
-        `cancel: failed to cancel message=${messageId}: ${(error as Error).message}`
+        `cancel: failed to cancel message=${messageId}: ${(error as Error).message}`,
       );
       await replyToMessage(ctx, "Failed to cancel the scheduled post.");
     }

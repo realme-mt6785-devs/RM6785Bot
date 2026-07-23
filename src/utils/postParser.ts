@@ -1,12 +1,12 @@
-import { Message } from "node-telegram-bot-api";
 import { getLogger } from "@logtape/logtape";
+import { Message } from "node-telegram-bot-api";
 
 const logger = getLogger(["RM6785Bot", "utils", "postParser"]);
 
 // TODO: also preserve bolds, italics, monospace and whatnot
 export const parsePostAndConstructRichMarkdown = (
   m: Message,
-  bannerLink?: string | undefined
+  bannerLink?: string | undefined,
 ): string | undefined => {
   if (!m.caption_entities) return undefined;
 
@@ -32,7 +32,7 @@ export const parsePostAndConstructRichMarkdown = (
     .replace(/^(Changelog|Bugs|Notes|Downloads)$/gm, "## $1\n")
     .replace(
       /^(Sources|Screenshots|Support group|Donate)$/gm,
-      "\n<sub>$1</sub>\n"
+      "\n<sub>$1</sub>\n",
     );
 
   let cursor = 0;

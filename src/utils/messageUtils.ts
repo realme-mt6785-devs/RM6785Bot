@@ -1,5 +1,6 @@
-import { MAX_VOTES } from "../constants";
 import { getLogger } from "@logtape/logtape";
+
+import { MAX_VOTES } from "../constants";
 
 const logger = getLogger(["RM6785Bot", "utils", "messageUtils"]);
 
@@ -27,7 +28,7 @@ export const hasEnoughVotes = (messageId: number): boolean => {
   const votes = currentVotes(messageId);
   const enough = votes >= MAX_VOTES;
   logger.debug(
-    `hasEnoughVotes: message=${messageId} votes=${votes}/${MAX_VOTES} enough=${enough}`
+    `hasEnoughVotes: message=${messageId} votes=${votes}/${MAX_VOTES} enough=${enough}`,
   );
   return enough;
 };

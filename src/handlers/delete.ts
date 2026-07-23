@@ -1,7 +1,9 @@
+import { getLogger } from "@logtape/logtape";
+
 import type { BotContext, HandlerDescriptor } from "../types";
+
 import { TELEGRAM_RM6785_CHANNEL } from "../constants";
 import { replyToMessage } from "../utils/contextUtils";
-import { getLogger } from "@logtape/logtape";
 
 const logger = getLogger(["RM6785Bot", "handlers", "delete"]);
 

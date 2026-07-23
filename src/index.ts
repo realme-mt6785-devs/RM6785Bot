@@ -1,17 +1,17 @@
-// logging must be set up before anyting else because we are
-// overriding console.*
 import { configure, getConsoleSink, getLogger } from "@logtape/logtape";
 import { prettyFormatter } from "@logtape/pretty";
-import { readdirSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname } from "node:path";
 import TelegramBot from "node-telegram-bot-api";
+import { readdirSync } from "node:fs";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import * as Middleware from "./middlewares";
-import { BOT_TOKEN } from "./config";
-import setupAutoPostDetection from "./autoPostDetection";
+
 import type { RegisteredCommand, HandlerDescriptor, BotContext } from "./types";
+
+import setupAutoPostDetection from "./autoPostDetection";
+import { BOT_TOKEN } from "./config";
+import * as Middleware from "./middlewares";
 import { replyToMessage } from "./utils/contextUtils";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -48,7 +48,7 @@ const logger = getLogger(["RM6785Bot"]);
 logger.info(`authenticated as bot id=${me.id} username=@${me.username}`);
 
 function compose(
-  middlewares: Middleware.Middleware[]
+  middlewares: Middleware.Middleware[],
 ): (ctx: BotContext) => Promise<void> {
   return async (ctx) => {
     let index = -1;
@@ -63,7 +63,7 @@ function compose(
 }
 
 const handlerFiles = readdirSync(`${__dirname}/handlers`).filter(
-  (file) => file.endsWith(".ts") || file.endsWith(".js")
+  (file) => file.endsWith(".ts") || file.endsWith(".js"),
 );
 
 export const registeredCommands: RegisteredCommand[] = [];
@@ -96,14 +96,14 @@ for (const handlerFile of handlerFiles) {
       const userId = ctx.message.from?.id;
       const chatId = ctx.message.chat.id;
       logger.info(
-        `dispatching '${handler.command}' from user=${userId ?? "unknown"} chat=${chatId}`
+        `dispatching '${handler.command}' from user=${userId ?? "unknown"} chat=${chatId}`,
       );
       try {
         await handler.execute(ctx);
         logger.debug(`handler '${handler.command}' completed`);
       } catch (error) {
         logger.error(
-          `handler '${handler.command}' threw: ${(error as Error).message}`
+          `handler '${handler.command}' threw: ${(error as Error).message}`,
         );
         throw error;
       }
@@ -121,7 +121,7 @@ for (const handlerFile of handlerFiles) {
         new RegExp(`^/${command}(?:@\\w+)?(?:\\s.*)?$`),
         async (msg) => {
           await commandHandler({ bot, botInfo, message: msg });
-        }
+        },
       );
 
       const prio = handler.priority ?? 0;
@@ -140,11 +140,11 @@ bot
   .getMyCommands()
   .then((fetchedCommands) => {
     const existingCommands = new Map(
-      fetchedCommands.map(({ command }) => [command, true])
+      fetchedCommands.map(({ command }) => [command, true]),
     );
 
     const commandsToRegister = registeredCommands.filter(
-      ({ command }) => !existingCommands.has(command)
+      ({ command }) => !existingCommands.has(command),
     );
 
     if (commandsToRegister.length > 0) {
@@ -152,7 +152,7 @@ bot
         .setMyCommands([...fetchedCommands, ...commandsToRegister])
         .catch((error: Error) => {
           logger.error(
-            `failed to register the slash commands:\n${error.message}`
+            `failed to register the slash commands:\n${error.message}`,
           );
         });
     }
@@ -165,7 +165,7 @@ bot.onText(/^\/start(?:@\w+)?(?:\s.*)?$/, async (msg) => {
   const ctx: BotContext = { bot, botInfo, message: msg };
   await replyToMessage(
     ctx,
-    "Hola, amigo. I'm RM6785Bot, specially created to handle posts on the RM6785 telegram channel.\nSpank /help to know more about me"
+    "Hola, amigo. I'm RM6785Bot, specially created to handle posts on the RM6785 telegram channel.\nSpank /help to know more about me",
   );
 });
 

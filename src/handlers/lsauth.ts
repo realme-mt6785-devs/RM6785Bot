@@ -1,6 +1,8 @@
-import type { BotContext, HandlerDescriptor } from "../types";
-import { getAuthorizedUsers } from "../utils/authUtils";
 import { getLogger } from "@logtape/logtape";
+
+import type { BotContext, HandlerDescriptor } from "../types";
+
+import { getAuthorizedUsers } from "../utils/authUtils";
 
 const logger = getLogger(["RM6785Bot", "handlers", "lsauth"]);
 

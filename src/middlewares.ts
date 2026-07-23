@@ -1,14 +1,16 @@
 import { getLogger } from "@logtape/logtape";
+
 import type { BotContext } from "./types";
-import { isAuthorized } from "./utils/authUtils";
+
 import { TELEGRAM_SU_ID } from "./constants";
+import { isAuthorized } from "./utils/authUtils";
 import { replyToMessage } from "./utils/contextUtils";
 
 const logger = getLogger(["RM6785Bot", "middlewares"]);
 
 export type Middleware = (
   ctx: BotContext,
-  next: () => Promise<void>
+  next: () => Promise<void>,
 ) => Promise<void>;
 
 export const suMiddleware: Middleware = async (ctx, next) => {

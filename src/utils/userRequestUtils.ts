@@ -1,5 +1,6 @@
-import { REQUEST_TIMEOUT } from "../constants";
 import { getLogger } from "@logtape/logtape";
+
+import { REQUEST_TIMEOUT } from "../constants";
 
 const logger = getLogger(["RM6785Bot", "utils", "userRequestUtils"]);
 
@@ -20,7 +21,7 @@ export const updateUserRequest = (userId: number): number => {
   setTimeout(() => {
     trackUserRequests.delete(userId);
     logger.debug(
-      `updateUserRequest: cleared request window for user=${userId}`
+      `updateUserRequest: cleared request window for user=${userId}`,
     );
   }, REQUEST_TIMEOUT);
   return 1;

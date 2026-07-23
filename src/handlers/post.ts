@@ -1,9 +1,8 @@
+import { getLogger } from "@logtape/logtape";
+import { InputMediaPhoto, Message } from "node-telegram-bot-api";
+
 import type { BotContext, HandlerDescriptor } from "../types";
-import {
-  messageInfo,
-  hasEnoughVotes,
-  currentVotes,
-} from "../utils/messageUtils";
+
 import {
   POST_TIMEOUT,
   MAX_VOTES,
@@ -14,8 +13,11 @@ import {
   TEST_MODE,
 } from "../constants";
 import { replyToMessage } from "../utils/contextUtils";
-import { InputMediaPhoto, Message } from "node-telegram-bot-api";
-import { getLogger } from "@logtape/logtape";
+import {
+  messageInfo,
+  hasEnoughVotes,
+  currentVotes,
+} from "../utils/messageUtils";
 
 const logger = getLogger(["RM6785Bot", "handlers", "post"]);
 
@@ -33,7 +35,7 @@ const postHandler = async (ctx: BotContext) => {
   }
 
   logger.info(
-    `post: requested for message=${messageId} votes=${votes}/${MAX_VOTES} timeout=${timeoutInMs / 60000}m testMode=${TEST_MODE}`
+    `post: requested for message=${messageId} votes=${votes}/${MAX_VOTES} timeout=${timeoutInMs / 60000}m testMode=${TEST_MODE}`,
   );
 
   if (!messageInfo[messageId]) {
@@ -46,18 +48,18 @@ const postHandler = async (ctx: BotContext) => {
     logger.warn(`post: message=${messageId} already scheduled, ignoring`);
     await replyToMessage(
       ctx,
-      "This message has already been scheduled for posting."
+      "This message has already been scheduled for posting.",
     );
     return;
   }
 
   if (!TEST_MODE && !hasEnoughVotes(messageId)) {
     logger.info(
-      `post: message=${messageId} lacks approvals (${votes}/${MAX_VOTES}), rejecting`
+      `post: message=${messageId} lacks approvals (${votes}/${MAX_VOTES}), rejecting`,
     );
     await replyToMessage(
       ctx,
-      `This message does not have enough approvals (${votes}/${MAX_VOTES})`
+      `This message does not have enough approvals (${votes}/${MAX_VOTES})`,
     );
     return;
   }
@@ -67,26 +69,26 @@ const postHandler = async (ctx: BotContext) => {
   try {
     const sentSticker = await ctx.bot.sendSticker(
       TELEGRAM_RM6785_CHANNEL,
-      TELEGRAM_STICKER_FILE_ID
+      TELEGRAM_STICKER_FILE_ID,
     );
     const countdown = await ctx.bot.sendMessage(
       TELEGRAM_RM6785_CHANNEL,
       `Something incoming! Scheduled in <b>${timeoutInMs / 60000}m</b>`,
       {
         parse_mode: "html",
-      }
+      },
     );
 
     msg.stickerMessageId = sentSticker.message_id;
     msg.countdownMessageId = countdown.message_id;
 
     logger.debug(
-      `post: sent sticker=${sentSticker.message_id} countdown=${countdown.message_id} for message=${messageId}`
+      `post: sent sticker=${sentSticker.message_id} countdown=${countdown.message_id} for message=${messageId}`,
     );
 
     const sentMessage = await replyToMessage(
       ctx,
-      `Scheduled to post in ${timeoutInMs / 60000}m`
+      `Scheduled to post in ${timeoutInMs / 60000}m`,
     );
     const sentMessageId = sentMessage.message_id;
 
@@ -119,7 +121,10 @@ const postHandler = async (ctx: BotContext) => {
             caption: ctx.message.reply_to_message!.caption!,
             caption_entities: ctx.message.reply_to_message!.caption_entities!,
           } as InputMediaPhoto,
-          { chat_id: TELEGRAM_RM6785_CHANNEL, message_id: countdown.message_id }
+          {
+            chat_id: TELEGRAM_RM6785_CHANNEL,
+            message_id: countdown.message_id,
+          },
         )) as Message;
 
         msg.isPosted = false;
@@ -135,11 +140,11 @@ const postHandler = async (ctx: BotContext) => {
             const forwardedMsg = await ctx.bot.forwardMessage(
               toChat,
               fromChat,
-              editedCountdown.message_id
+              editedCountdown.message_id,
             );
             await ctx.bot.pinChatMessage(toChat, forwardedMsg.message_id);
             logger.debug(
-              `post: forwarded+pinned message from chat=${fromChat} to chat=${toChat}`
+              `post: forwarded+pinned message from chat=${fromChat} to chat=${toChat}`,
             );
           };
 
@@ -148,7 +153,7 @@ const postHandler = async (ctx: BotContext) => {
           logger.info(`post: message=${messageId} published and pinned`);
         } catch (error) {
           logger.error(
-            `post: failed to forward/pin message=${messageId}: ${(error as Error).message}`
+            `post: failed to forward/pin message=${messageId}: ${(error as Error).message}`,
           );
         }
       } else {
@@ -162,7 +167,7 @@ const postHandler = async (ctx: BotContext) => {
     msg.timeoutId = timeoutId;
   } catch (error) {
     logger.error(
-      `post: failed to schedule message=${messageId}: ${(error as Error).message}`
+      `post: failed to schedule message=${messageId}: ${(error as Error).message}`,
     );
   }
 };

@@ -1,6 +1,7 @@
-import { Octokit } from "@octokit/rest";
-import { GIST_ID, GIST_TOKEN } from "../config";
 import { getLogger } from "@logtape/logtape";
+import { Octokit } from "@octokit/rest";
+
+import { GIST_ID, GIST_TOKEN } from "../config";
 
 const logger = getLogger(["RM6785Bot", "utils", "authUtils"]);
 
@@ -21,7 +22,7 @@ export const getAuthorizedUsers = async (): Promise<AuthorizedUser[]> => {
       if (gistFile && gistFile.content && gistFile.content.trim().length > 0) {
         const users = JSON.parse(gistFile.content) as AuthorizedUser[];
         logger.debug(
-          `getAuthorizedUsers: loaded ${users.length} users from gist`
+          `getAuthorizedUsers: loaded ${users.length} users from gist`,
         );
         return users;
       }
@@ -31,14 +32,14 @@ export const getAuthorizedUsers = async (): Promise<AuthorizedUser[]> => {
     return [{ id: 1138003186, name: "SamarV-121" }];
   } catch (error) {
     logger.error(
-      `getAuthorizedUsers: error fetching gist: ${(error as Error).message}`
+      `getAuthorizedUsers: error fetching gist: ${(error as Error).message}`,
     );
     return [];
   }
 };
 
 export const uploadAuthorizedUsers = async (
-  jsonData: AuthorizedUser[]
+  jsonData: AuthorizedUser[],
 ): Promise<string | false> => {
   try {
     const { data } = await octokit.gists.update({
@@ -50,12 +51,12 @@ export const uploadAuthorizedUsers = async (
       },
     });
     logger.debug(
-      `uploadAuthorizedUsers: uploaded ${jsonData.length} users to gist`
+      `uploadAuthorizedUsers: uploaded ${jsonData.length} users to gist`,
     );
     return data.id as string;
   } catch (error) {
     logger.error(
-      `uploadAuthorizedUsers: error uploading gist: ${(error as Error).message}`
+      `uploadAuthorizedUsers: error uploading gist: ${(error as Error).message}`,
     );
     return false;
   }
@@ -83,7 +84,7 @@ export const addAuthorizedUser = async (user: {
 };
 
 export const removeAuthorizedUser = async (
-  userId: number
+  userId: number,
 ): Promise<boolean> => {
   const authorizedUsers = await getAuthorizedUsers();
 

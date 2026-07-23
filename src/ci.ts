@@ -1,9 +1,10 @@
-import { spawn } from "node:child_process";
-import { Octokit } from "@octokit/rest";
-import { bot } from "./index";
-import { GH_REPO_TOKEN } from "./config";
-import simpleGit from "simple-git";
 import { getLogger } from "@logtape/logtape";
+import { Octokit } from "@octokit/rest";
+import { spawn } from "node:child_process";
+import simpleGit from "simple-git";
+
+import { GH_REPO_TOKEN } from "./config";
+import { bot } from "./index";
 
 const logger = getLogger(["RM6785Bot", "ci"]);
 
@@ -22,7 +23,7 @@ const restartBot = async () => {
 
   try {
     logger.info(
-      `restarting bot for commit ${latestRemoteCommit.substring(0, 7)}: ${latestCommitMessage}`
+      `restarting bot for commit ${latestRemoteCommit.substring(0, 7)}: ${latestCommitMessage}`,
     );
     await pullChanges();
 
@@ -30,9 +31,9 @@ const restartBot = async () => {
       chatId,
       `<a href="${latestCommitUrl}">${latestRemoteCommit.substring(
         0,
-        7
+        7,
       )}</a>: ${latestCommitMessage}\n\nRestarting the bot`,
-      { parse_mode: "HTML" }
+      { parse_mode: "HTML" },
     );
 
     const child = spawn("bun", ["run", "src/index.ts", "--", "--ci"], {
@@ -64,7 +65,7 @@ const commitListener = async () => {
 
       if (latestRemoteCommit !== localCommitHead) {
         logger.info(
-          `new remote commit detected ${latestRemoteCommit.substring(0, 7)} (local ${localCommitHead.substring(0, 7)}): ${latestCommitMessage}`
+          `new remote commit detected ${latestRemoteCommit.substring(0, 7)} (local ${localCommitHead.substring(0, 7)}): ${latestCommitMessage}`,
         );
         restartBot();
       }

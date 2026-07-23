@@ -1,16 +1,19 @@
 import type TelegramBot from "node-telegram-bot-api";
-import { updateUserRequest } from "./utils/userRequestUtils";
+
+import { getLogger } from "@logtape/logtape";
+
+import type { BotContext } from "./types";
+
 import {
   TELEGRAM_RELEASE_CHAT,
   MAX_REQUESTS,
   REQUEST_TIMEOUT,
 } from "./constants";
-import lintTelegramPost from "./utils/lintUtils";
-import { handler as lsauthHandler } from "./handlers/lsauth";
 import { handler as lintHandler } from "./handlers/lint";
-import type { BotContext } from "./types";
+import { handler as lsauthHandler } from "./handlers/lsauth";
 import { replyToMessage } from "./utils/contextUtils";
-import { getLogger } from "@logtape/logtape";
+import lintTelegramPost from "./utils/lintUtils";
+import { updateUserRequest } from "./utils/userRequestUtils";
 
 const logger = getLogger(["RM6785Bot", "autoPostDetection"]);
 
@@ -31,7 +34,7 @@ const setupAutoPostDetection = (bot: TelegramBot, botInfo: { id: number }) => {
       msg.caption.search("#KERNEL") !== -1
     ) {
       logger.info(
-        `detected post in chat=${msg.chat.id} (${msg.chat.type}) message=${msg.message_id}`
+        `detected post in chat=${msg.chat.id} (${msg.chat.type}) message=${msg.message_id}`,
       );
       const replyMsg = {
         message_id: msg.message_id,
@@ -41,49 +44,47 @@ const setupAutoPostDetection = (bot: TelegramBot, botInfo: { id: number }) => {
         caption_entities: msg.caption_entities,
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       msg.reply_to_message = replyMsg as any;
 
       const ctx: BotContext = { bot, botInfo, message: msg };
 
       if (msg.chat.type === "private") {
         const [lintResult, lintSuccessful] = lintTelegramPost(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           replyMsg.caption!,
-          (replyMsg as any).caption_entities ?? []
+          (replyMsg as any).caption_entities ?? [],
         );
         logger.info(
-          `private post from chat=${msg.chat.id}: lint ${lintSuccessful ? "passed" : "failed"}`
+          `private post from chat=${msg.chat.id}: lint ${lintSuccessful ? "passed" : "failed"}`,
         );
         await bot.sendRichMessage(
           msg.chat.id,
           { markdown: lintResult },
           {
             reply_parameters: { message_id: msg.message_id },
-          }
+          },
         );
         if (lintSuccessful) {
           const userRequests = updateUserRequest(msg.chat.id);
           if (userRequests > MAX_REQUESTS) {
             logger.warn(
-              `spam detected from chat=${msg.chat.id} (${userRequests}/${MAX_REQUESTS} requests)`
+              `spam detected from chat=${msg.chat.id} (${userRequests}/${MAX_REQUESTS} requests)`,
             );
             await bot.sendMessage(
               msg.chat.id,
               `Spam detected, Try again after ${
                 REQUEST_TIMEOUT / 60000
-              } minutes`
+              } minutes`,
             );
             return;
           }
 
           logger.info(
-            `forwarding post message=${msg.message_id} from chat=${msg.chat.id} to release chat for approval`
+            `forwarding post message=${msg.message_id} from chat=${msg.chat.id} to release chat for approval`,
           );
           await bot.forwardMessage(
             TELEGRAM_RELEASE_CHAT,
             msg.chat.id,
-            msg.message_id
+            msg.message_id,
           );
           await replyToMessage(ctx, "Forwarded post in the group for approval");
           const updatedCtx: BotContext = {
@@ -98,7 +99,7 @@ const setupAutoPostDetection = (bot: TelegramBot, botInfo: { id: number }) => {
         }
       } else {
         logger.debug(
-          `running lint handler on post message=${msg.message_id} in chat=${msg.chat.id}`
+          `running lint handler on post message=${msg.message_id} in chat=${msg.chat.id}`,
         );
         const lintCtx: BotContext = {
           ...ctx,
