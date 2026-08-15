@@ -47,6 +47,26 @@ const publishAsPhoto = async (
   return published.message_id;
 };
 
+const publishAsCopy = async (
+  ctx: BotContext,
+  target: Message,
+  countdownMessageId: number,
+): Promise<number> => {
+  logger.info(
+    `post: message=${target.message_id} is not a photo with a caption, copying it instead`,
+  );
+
+  await ctx.bot.deleteMessage(TELEGRAM_RM6785_CHANNEL, countdownMessageId);
+
+  const copied = await ctx.bot.copyMessage(
+    TELEGRAM_RM6785_CHANNEL,
+    ctx.message.chat.id,
+    target.message_id,
+  );
+
+  return copied.message_id;
+};
+
 export const postStrategy: PostStrategy = {
   name: "post",
 
@@ -68,8 +88,13 @@ export const postStrategy: PostStrategy = {
     });
   },
 
-  publish: async (ctx, countdownMessageId) =>
-    publishAsPhoto(ctx, ctx.message.reply_to_message!, countdownMessageId),
+  publish: async (ctx, countdownMessageId) => {
+    const target = ctx.message.reply_to_message!;
+
+    return target.photo?.length && target.caption
+      ? publishAsPhoto(ctx, target, countdownMessageId)
+      : publishAsCopy(ctx, target, countdownMessageId);
+  },
 };
 
 const postHandler = async (ctx: BotContext) => {
