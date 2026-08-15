@@ -1,175 +1,81 @@
 import { getLogger } from "@logtape/logtape";
-import { InputMediaPhoto, Message } from "node-telegram-bot-api";
+import { InputMediaPhoto, Message, PhotoSize } from "node-telegram-bot-api";
 
 import type { BotContext, HandlerDescriptor } from "../types";
 
+import { TELEGRAM_RM6785_CHANNEL } from "../constants";
 import {
-  POST_TIMEOUT,
-  MAX_VOTES,
-  TELEGRAM_STICKER_FILE_ID,
-  TELEGRAM_RM6785_CHANNEL,
-  TELEGRAM_RM6785_CHAT,
-  TELEGRAM_R7_CHAT,
-  TEST_MODE,
-} from "../constants";
-import { replyToMessage } from "../utils/contextUtils";
-import {
-  messageInfo,
-  hasEnoughVotes,
-  currentVotes,
-} from "../utils/messageUtils";
+  parseTimeout,
+  schedulePost,
+  type PostStrategy,
+} from "../utils/postScheduler";
 
 const logger = getLogger(["RM6785Bot", "handlers", "post"]);
+
+const largestPhoto = (sizes: PhotoSize[]): PhotoSize =>
+  sizes.reduce((largest, size) =>
+    size.width * size.height > largest.width * largest.height ? size : largest,
+  );
+
+const countdownText = (remaining: string) =>
+  `Something incoming! Scheduled in <b>${remaining}</b>`;
+
+const publishAsPhoto = async (
+  ctx: BotContext,
+  target: Message,
+  countdownMessageId: number,
+): Promise<number> => {
+  const banner = largestPhoto(target.photo!);
+
+  logger.debug(
+    `post: editing the countdown into a ${banner.width}x${banner.height} photo post`,
+  );
+
+  const published = (await ctx.bot.editMessageMedia(
+    {
+      type: "photo",
+      media: banner.file_id,
+      caption: target.caption!,
+      caption_entities: target.caption_entities!,
+    } as InputMediaPhoto,
+    {
+      chat_id: TELEGRAM_RM6785_CHANNEL,
+      message_id: countdownMessageId,
+    },
+  )) as Message;
+
+  return published.message_id;
+};
+
+export const postStrategy: PostStrategy = {
+  name: "post",
+
+  sendCountdown: async (ctx, totalMinutes) => {
+    const sent = await ctx.bot.sendMessage(
+      TELEGRAM_RM6785_CHANNEL,
+      countdownText(`${totalMinutes}m`),
+      { parse_mode: "html" },
+    );
+    return sent.message_id;
+  },
+
+  editCountdown: async (ctx, countdownMessageId, minutes, seconds) => {
+    await ctx.bot.editMessageText({
+      chat_id: TELEGRAM_RM6785_CHANNEL,
+      message_id: countdownMessageId,
+      text: countdownText(`${minutes}m ${seconds}s`),
+      parse_mode: "html",
+    });
+  },
+
+  publish: async (ctx, countdownMessageId) =>
+    publishAsPhoto(ctx, ctx.message.reply_to_message!, countdownMessageId),
+};
 
 const postHandler = async (ctx: BotContext) => {
   if (!ctx.message.reply_to_message || !ctx.message.text) return;
 
-  const chatId = ctx.message.chat.id;
-  const messageId = ctx.message.reply_to_message.message_id;
-  const votes = currentVotes(messageId);
-  const timeoutMatch = ctx.message.text?.match(/\d+(\.\d+)?m/);
-  let timeoutInMs = POST_TIMEOUT;
-  if (timeoutMatch) {
-    const timeoutInMinutes = parseFloat(timeoutMatch[0].replace(/m$/, ""));
-    timeoutInMs = timeoutInMinutes * 60000;
-  }
-
-  logger.info(
-    `post: requested for message=${messageId} votes=${votes}/${MAX_VOTES} timeout=${timeoutInMs / 60000}m testMode=${TEST_MODE}`,
-  );
-
-  if (!messageInfo[messageId]) {
-    messageInfo[messageId] = {};
-  }
-
-  const msg = messageInfo[messageId];
-
-  if (msg.isPosted) {
-    logger.warn(`post: message=${messageId} already scheduled, ignoring`);
-    await replyToMessage(
-      ctx,
-      "This message has already been scheduled for posting.",
-    );
-    return;
-  }
-
-  if (!TEST_MODE && !hasEnoughVotes(messageId)) {
-    logger.info(
-      `post: message=${messageId} lacks approvals (${votes}/${MAX_VOTES}), rejecting`,
-    );
-    await replyToMessage(
-      ctx,
-      `This message does not have enough approvals (${votes}/${MAX_VOTES})`,
-    );
-    return;
-  }
-
-  msg.isPosted = true;
-
-  try {
-    const sentSticker = await ctx.bot.sendSticker(
-      TELEGRAM_RM6785_CHANNEL,
-      TELEGRAM_STICKER_FILE_ID,
-    );
-    const countdown = await ctx.bot.sendMessage(
-      TELEGRAM_RM6785_CHANNEL,
-      `Something incoming! Scheduled in <b>${timeoutInMs / 60000}m</b>`,
-      {
-        parse_mode: "html",
-      },
-    );
-
-    msg.stickerMessageId = sentSticker.message_id;
-    msg.countdownMessageId = countdown.message_id;
-
-    logger.debug(
-      `post: sent sticker=${sentSticker.message_id} countdown=${countdown.message_id} for message=${messageId}`,
-    );
-
-    const sentMessage = await replyToMessage(
-      ctx,
-      `Scheduled to post in ${timeoutInMs / 60000}m`,
-    );
-    const sentMessageId = sentMessage.message_id;
-
-    let secondsLeft = Math.floor(timeoutInMs / 1000);
-
-    const countdownTimeout = async () => {
-      if (secondsLeft % 5 === 0) {
-        const minutes = Math.floor(secondsLeft / 60);
-        const seconds = secondsLeft % 60;
-        const a = ctx.bot.editMessageText({
-          chat_id: chatId,
-          message_id: sentMessageId,
-          text: `Scheduled to post in ${minutes}m ${seconds}s`,
-        });
-        const b = ctx.bot.editMessageText({
-          chat_id: TELEGRAM_RM6785_CHANNEL,
-          message_id: countdown.message_id,
-          text: `Something incoming! Scheduled in <b>${minutes}m ${seconds}s</b>`,
-          parse_mode: "html",
-        });
-        await Promise.all([a, b]);
-      }
-
-      if (secondsLeft <= 0) {
-        logger.info(`post: countdown elapsed, publishing message=${messageId}`);
-        const editedCountdown = (await ctx.bot.editMessageMedia(
-          {
-            type: "photo",
-            media: ctx.message.reply_to_message!.photo![0].file_id,
-            caption: ctx.message.reply_to_message!.caption!,
-            caption_entities: ctx.message.reply_to_message!.caption_entities!,
-          } as InputMediaPhoto,
-          {
-            chat_id: TELEGRAM_RM6785_CHANNEL,
-            message_id: countdown.message_id,
-          },
-        )) as Message;
-
-        msg.isPosted = false;
-
-        await ctx.bot.editMessageText({
-          chat_id: chatId,
-          message_id: sentMessageId,
-          text: "Posted successfully!",
-        });
-
-        try {
-          const forwardAndPin = async (fromChat: number, toChat: number) => {
-            const forwardedMsg = await ctx.bot.forwardMessage(
-              toChat,
-              fromChat,
-              editedCountdown.message_id,
-            );
-            await ctx.bot.pinChatMessage(toChat, forwardedMsg.message_id);
-            logger.debug(
-              `post: forwarded+pinned message from chat=${fromChat} to chat=${toChat}`,
-            );
-          };
-
-          await forwardAndPin(TELEGRAM_RM6785_CHANNEL, TELEGRAM_RM6785_CHAT);
-          await forwardAndPin(TELEGRAM_RM6785_CHANNEL, TELEGRAM_R7_CHAT);
-          logger.info(`post: message=${messageId} published and pinned`);
-        } catch (error) {
-          logger.error(
-            `post: failed to forward/pin message=${messageId}: ${(error as Error).message}`,
-          );
-        }
-      } else {
-        msg.timeoutId = setTimeout(countdownTimeout, 1000);
-      }
-
-      secondsLeft -= 1;
-    };
-
-    const timeoutId = setTimeout(countdownTimeout, 1000);
-    msg.timeoutId = timeoutId;
-  } catch (error) {
-    logger.error(
-      `post: failed to schedule message=${messageId}: ${(error as Error).message}`,
-    );
-  }
+  await schedulePost(ctx, postStrategy, parseTimeout(ctx.message.text));
 };
 
 const handler: HandlerDescriptor = {

@@ -2,38 +2,27 @@ import { getLogger } from "@logtape/logtape";
 
 import type { BotContext, HandlerDescriptor } from "../types";
 
-import { MAX_VOTES } from "../constants";
-import { messageInfo } from "../utils/messageUtils";
-import { handler as postHandler } from "./post";
+import { parseTimeout, schedulePost } from "../utils/postScheduler";
+import { postStrategy } from "./post";
 
 const logger = getLogger(["RM6785Bot", "handlers", "fpost"]);
 
 const fpostHandler = async (ctx: BotContext) => {
-  if (!ctx.message.reply_to_message) return;
-
-  const messageId = ctx.message.reply_to_message.message_id;
-  const oldMessageInfo = messageInfo[messageId];
+  const target = ctx.message.reply_to_message;
+  if (!target) return;
 
   logger.info(
-    `fpost: force-posting message=${messageId}, injecting ${MAX_VOTES} synthetic votes`,
+    `fpost: force-posting message=${target.message_id}, bypassing the approval gate`,
   );
 
-  if (!messageInfo[messageId]) {
-    messageInfo[messageId] = {};
-  }
-
-  for (let i = 0; i < MAX_VOTES; i++) {
-    messageInfo[messageId][-1 - i] = true;
-  }
-  await postHandler.execute(ctx);
-
-  messageInfo[messageId] = oldMessageInfo;
-  logger.debug(`fpost: restored original messageInfo for message=${messageId}`);
+  await schedulePost(ctx, postStrategy, parseTimeout(ctx.message.text), {
+    force: true,
+  });
 };
 
 const handler: HandlerDescriptor = {
   command: "fpost",
-  help: "Publish an approved message on the channel.",
+  help: "Publish a message on the channel without waiting for approvals.",
   su: true,
   reply_to_message: true,
   execute: fpostHandler,
