@@ -4,329 +4,336 @@ import { getLogger } from "@logtape/logtape";
 
 const logger = getLogger(["RM6785Bot", "utils", "lintUtils"]);
 
+export const NO_BANNER_ERROR =
+  "# ERROR: No ROM banner was found. Please provide a banner for the ROM.";
+
+const RELEASE_TYPE = ["OFFICIAL", "UNOFFICIAL"];
+const BUILD_TYPE = ["ROM", "KERNEL", "RECOVERY"];
+const DEVICE = ["RM6785", "RMX2001", "RMX2151", "salaa", "nemo"];
+const ANDROID_VERSION = [
+  "A10",
+  "A11",
+  "A12",
+  "A13",
+  "A14",
+  "A15",
+  "A16",
+  "A17",
+];
+const RUI_VERSION = ["RUI1", "RUI2", "RUI3"];
+
+const VALID_TITLES: Record<string, string> = {
+  RM6785:
+    "for Realme 6/6i(Indian)/6s/7/Narzo/Narzo 20 Pro/Narzo 30 4G [STABLE/BETA/ALPHA]",
+  nemo: "for Realme 6/6i(Indian)/6s/Narzo ONLY [STABLE/BETA/ALPHA]",
+  RMX2001: "for Realme 6/6i(Indian)/6s/Narzo ONLY [STABLE/BETA/ALPHA]",
+  salaa: "for Realme 7/Narzo 20 Pro/Narzo 30 4G ONLY [STABLE/BETA/ALPHA]",
+  RMX2151: "for Realme 7/Narzo 20 Pro/Narzo 30 4G ONLY [STABLE/BETA/ALPHA]",
+};
+
+const TITLE_PATTERNS: Record<string, RegExp> = {
+  RM6785:
+    /.* for Realme 6\/6i\(Indian\)\/6s\/7\/Narzo\/Narzo 20 Pro\/Narzo 30 4G \[(STABLE|BETA|ALPHA)\]/,
+  nemo: /.* for Realme 6\/6i\(Indian\)\/6s\/Narzo ONLY \[(STABLE|BETA|ALPHA)\]/,
+  RMX2001:
+    /.* for Realme 6\/6i\(Indian\)\/6s\/Narzo ONLY \[(STABLE|BETA|ALPHA)\]/,
+  salaa:
+    /.* for Realme 7\/Narzo 20 Pro\/Narzo 30 4G ONLY \[(STABLE|BETA|ALPHA)\]/,
+  RMX2151:
+    /.* for Realme 7\/Narzo 20 Pro\/Narzo 30 4G ONLY \[(STABLE|BETA|ALPHA)\]/,
+};
+
+const BOLD_TITLE_MARKERS = [
+  "for Realme 6/6i(Indian)/6s/7/Narzo/Narzo 20 Pro/Narzo 30 4G",
+  "for Realme 6/6i(Indian)/6s/Narzo ONLY",
+  "for Realme 7/Narzo 20 Pro/Narzo 30 4G ONLY",
+];
+
+interface BoldSections {
+  title: boolean;
+  notes: boolean;
+  changelog: boolean;
+  bugs: boolean;
+  downloads: boolean;
+}
+
+const section = (name: string, errors: string): string =>
+  errors ? `## ${name}:\n${errors}` : "";
+
+const detectBoldSections = (
+  text: string,
+  entities: MessageEntity[],
+): BoldSections => {
+  const bold: BoldSections = {
+    title: false,
+    notes: !text.includes("Notes"),
+    changelog: false,
+    bugs: false,
+    downloads: false,
+  };
+
+  for (const entity of entities) {
+    if (entity.type !== "bold") continue;
+
+    const word = text.substring(entity.offset, entity.offset + entity.length);
+
+    if (word.includes("Notes")) bold.notes = true;
+    else if (word.includes("Changelog")) bold.changelog = true;
+    else if (word.includes("Bugs")) bold.bugs = true;
+    else if (word.includes("Downloads")) bold.downloads = true;
+    else if (BOLD_TITLE_MARKERS.some((marker) => word.includes(marker))) {
+      bold.title = true;
+    }
+  }
+
+  return bold;
+};
+
+const validateHashtags = (
+  hashtags: string[],
+): { errors: string; kernel: boolean; device: string | null } => {
+  const buildTag = hashtags[1];
+  const releaseTag = hashtags[2];
+  const kernel = buildTag === "KERNEL";
+
+  let deviceTag = hashtags[3];
+  let androidTag = hashtags[4];
+  let ruiTag = hashtags[5];
+
+  if (kernel) {
+    deviceTag = hashtags[2];
+    ruiTag = hashtags[3];
+  } else if (androidTag?.includes("RMX")) {
+    androidTag = hashtags[5];
+    ruiTag = hashtags[6];
+  }
+
+  if (hashtags.length === 0) {
+    return {
+      errors: section("Hashtags", "- No hashtags were found.\n"),
+      kernel,
+      device: null,
+    };
+  }
+
+  let errors = "";
+  let device: string | null = null;
+
+  if (!BUILD_TYPE.includes(buildTag)) {
+    errors += `- Incorrect build type mentioned on the second hashtag. (${BUILD_TYPE.join("/")})\n`;
+  }
+
+  if (!kernel && !RELEASE_TYPE.includes(releaseTag)) {
+    errors += `- Incorrect release type mentioned on the third hashtag. (${RELEASE_TYPE.join("/")})\n`;
+  }
+
+  if (DEVICE.includes(deviceTag)) {
+    device = deviceTag;
+  } else {
+    const position = kernel ? "third" : "fourth";
+    errors += `- Incorrect device mentioned on the ${position} hashtag. (${DEVICE.join("/")})\n`;
+  }
+
+  if (!kernel && !ANDROID_VERSION.includes(androidTag)) {
+    errors += `- Incorrect Android version mentioned on the fifth hashtag. (${ANDROID_VERSION.join("/")})\n`;
+  }
+
+  if (!RUI_VERSION.includes(ruiTag)) {
+    errors += `- Incorrect RealmeUI version mentioned on the last hashtag. (${RUI_VERSION.join("/")})\n`;
+  }
+
+  return { errors: section("Hashtags", errors), kernel, device };
+};
+
+const validateTitle = (
+  text: string,
+  hashtags: string[],
+  device: string | null,
+  boldTitle: boolean,
+): string => {
+  if (device === null) {
+    return section(
+      "Title",
+      "- Cannot be validated because of hashtag errors\n",
+    );
+  }
+
+  const title = text.match(TITLE_PATTERNS[device])?.[0] ?? null;
+
+  if (!title) {
+    return section(
+      "Title",
+      `- No title or invalid title found. Based on your hashtag, it should be ${VALID_TITLES[device]}\n`,
+    );
+  }
+
+  const lastHashtag = hashtags[hashtags.length - 1];
+  const afterHashtags = text.slice(
+    text.lastIndexOf(lastHashtag) + lastHashtag.length,
+  );
+  const titleNewlines = afterHashtags
+    .slice(0, afterHashtags.search(/\S/))
+    .match(/\n/g);
+
+  let errors = "";
+
+  if (titleNewlines?.length !== 2) {
+    errors += "- Missing two newlines before the title\n";
+  }
+
+  if (!boldTitle) {
+    errors += "- Missing bold format on title\n";
+  }
+
+  return section("Title", errors);
+};
+
+const validateBuildInfo = (text: string, kernel: boolean): string => {
+  const type = kernel ? "Kernel" : "Android";
+  const infoPattern = `(.+)\n• Author:(.+)?\n• ${type} version:(.+)?\n• Build date:(.+)?`;
+
+  if (!text.match(new RegExp(infoPattern, "i"))) {
+    return section("Build info", "- Invalid build info section.\n");
+  }
+
+  let errors = "";
+
+  if (!text.match(new RegExp(infoPattern))) {
+    errors += "- Incorrect case\n";
+  }
+
+  if (!text.match(/(.+)\n• Author: (.+)/)) {
+    errors += "- Invalid author info\n";
+  }
+
+  if (!text.match(new RegExp(`\n• ${type} version: (.+)`))) {
+    errors += `- Invalid ${type} version info\n`;
+  }
+
+  if (
+    !text.match(
+      /\n• Build date: (0?[1-9]|[12][0-9]|3[01])-(0?[1-9]|1[0-2])-\d{4}/,
+    )
+  ) {
+    errors += "- Invalid build date info (Required format: DD-MM-YY)\n";
+  }
+
+  return section("Build info", errors);
+};
+
+const validateChangelogBugs = (text: string, bold: BoldSections): string => {
+  const matchPattern =
+    "\n\nChangelog\n(.+\n)+\nBugs\n(.+\n)+(\nNotes\n(.+\n)+)?";
+
+  if (!text.match(new RegExp(matchPattern, "i"))) {
+    return section("Changelog/Bugs", "- Invalid Changelog/Bugs section.\n");
+  }
+
+  let errors = "";
+
+  if (!text.match(new RegExp(matchPattern))) {
+    errors += "- Incorrect case.\n";
+  } else {
+    if (!bold.changelog) errors += "- Missing bold format on Changelog\n";
+    if (!bold.bugs) errors += "- Missing bold format on Bugs\n";
+    if (!bold.notes) errors += "- Missing bold format on Notes\n";
+  }
+
+  if (!text.match(/\n\nChangelog\n•/)) {
+    errors += "- Invalid Changelog section.\n";
+  }
+
+  if (!text.match(/\nBugs\n•/)) {
+    errors += "- Invalid Bugs section.\n";
+  }
+
+  if (text.match(/\nNote/i) && !text.match(/\nNotes\n•/)) {
+    errors += "- Invalid notes section.\n";
+  }
+
+  return section("Changelog/Bugs", errors);
+};
+
+const validateDownloads = (
+  text: string,
+  kernel: boolean,
+  boldDownloads: boolean,
+): string => {
+  const matchPattern = kernel
+    ? "\n\nDownloads\n• File size:(.+)?\n• Download\n"
+    : "\n\nDownloads\n• Build type:(.+)?\n• File size:(.+)?\n• Download\n";
+
+  if (!text.match(new RegExp(matchPattern, "i"))) {
+    return section("Downloads", "- Invalid Downloads section.\n");
+  }
+
+  let errors = "";
+
+  if (!text.match(new RegExp(matchPattern))) {
+    errors += "- Incorrect case.\n";
+  } else if (!boldDownloads) {
+    errors += "- Missing bold format on Downloads.\n";
+  }
+
+  if (!kernel && !text.match(/(.+)\n• Build type: (.+)/)) {
+    errors += "- Invalid build type\n";
+  }
+
+  if (!text.match(/(.+)\n• File size: (.+)/)) {
+    errors += "- Invalid file size\n";
+  }
+
+  return section("Downloads", errors);
+};
+
+const validateFooter = (text: string, kernel: boolean): string => {
+  const matchPattern = kernel
+    ? "\nSources\nSupport group"
+    : "\nSources\nScreenshots\nSupport group";
+
+  if (!text.match(new RegExp(matchPattern, "i"))) {
+    return section(
+      "Footer",
+      `- Invalid footer section.\n  Should be written exactly like this:${matchPattern}\n`,
+    );
+  }
+
+  if (!text.match(new RegExp(matchPattern))) {
+    return section(
+      "Footer",
+      `- Incorrect case.\n  Correct usage:${matchPattern}\n`,
+    );
+  }
+
+  return "";
+};
+
 const lintTelegramPost = (
   text: string,
   entities: MessageEntity[],
 ): [string, boolean] => {
-  let KERNEL = false;
-  let boldTitle = false;
-  let boldNotes = false;
-  let boldChangelog = false;
-  let boldBugs = false;
-  let boldDownloads = false;
-  let hashtags: string[] = [];
-  let device: string | null = null;
+  const hashtags = text.match(/#\w+/g)?.map((tag) => tag.slice(1)) ?? [];
+  const { errors: hashtagErrors, kernel, device } = validateHashtags(hashtags);
+  const bold = detectBoldSections(text, entities);
 
-  const validateHashtags = (): string => {
-    let errorMessage = "";
-    hashtags = text.match(/#\w+/g)?.map((tag) => tag.slice(1)) || [];
-    let [
-      TAG_BRAND,
-      TAG_BUILD,
-      TAG_RELEASE_TYPE,
-      TAG_DEVICE,
-      TAG_ANDROID_VER,
-      TAG_RUI_VER,
-    ] = hashtags;
-
-    if (TAG_BUILD === "KERNEL") {
-      KERNEL = true;
-      [TAG_DEVICE, TAG_RUI_VER] = [hashtags[2], hashtags[3]];
-    } else if (TAG_ANDROID_VER?.includes("RMX")) {
-      [TAG_ANDROID_VER, TAG_RUI_VER] = [hashtags[5], hashtags[6]];
-    }
-
-    const RELEASE_TYPE = ["UNOFFICIAL", "OFFICIAL"];
-    const BUILD_TYPE = ["ROM", "KERNEL", "RECOVERY"];
-    const DEVICE = ["RM6785", "RMX2001", "RMX2151", "salaa", "nemo"];
-    const ANDROID_VERSION = [
-      "A10",
-      "A11",
-      "A12",
-      "A13",
-      "A14",
-      "A15",
-      "A16",
-      "A17",
-    ];
-    const RUI_VERSION = ["RUI1", "RUI2", "RUI3"];
-
-    if (hashtags.length === 0) {
-      return "Hashtags:\n- No hashtags were found.";
-    }
-
-    if (!BUILD_TYPE.includes(TAG_BUILD)) {
-      errorMessage +=
-        "- Incorrect build type mentioned on the second hashtag. (ROM/KERNEL/RECOVERY)\n";
-    }
-
-    if (!KERNEL && !RELEASE_TYPE.includes(TAG_RELEASE_TYPE)) {
-      errorMessage +=
-        "- Incorrect release type mentioned on the third hashtag. (OFFICIAL/UNOFFICIAL)\n";
-    }
-
-    if (!DEVICE.includes(TAG_DEVICE)) {
-      if (KERNEL) {
-        errorMessage += `- Incorrect device mentioned on the third hashtag. (RM6785/RMX2001/RMX2151/salaa)\n`;
-      } else {
-        errorMessage += `- Incorrect device mentioned on the fourth hashtag. (RM6785/RMX2001/RMX2151/salaa)\n`;
-      }
-    } else {
-      device = TAG_DEVICE;
-    }
-
-    if (!KERNEL && !ANDROID_VERSION.includes(TAG_ANDROID_VER)) {
-      errorMessage += `- Incorrect Android version mentioned on the fifth hashtag. (A10/A11/A12/A13/A14/A15/A16)\n`;
-    }
-
-    if (!RUI_VERSION.includes(TAG_RUI_VER)) {
-      errorMessage += `- Incorrect RealmeUI version mentioned on the last hashtag. (RUI1/RUI2/RUI3)\n`;
-    }
-
-    return errorMessage ? `Hashtags:\n${errorMessage}` : "";
-  };
-
-  const validateBold = (): string => {
-    if (!text.includes("Notes")) {
-      boldNotes = true;
-    }
-
-    const boldEntities = entities.filter((entity) => entity.type === "bold");
-
-    boldEntities.forEach((entity) => {
-      const word = text.substring(entity.offset, entity.offset + entity.length);
-      if (word.includes("Notes")) boldNotes = true;
-      else if (word.includes("Changelog")) boldChangelog = true;
-      else if (word.includes("Bugs")) boldBugs = true;
-      else if (word.includes("Downloads")) boldDownloads = true;
-      else if (
-        word.includes(
-          "for Realme 6/6i(Indian)/6s/7/Narzo/Narzo 20 Pro/Narzo 30 4G",
-        ) ||
-        word.includes("for Realme 6/6i(Indian)/6s/Narzo ONLY") ||
-        word.includes("for Realme 7/Narzo 20 Pro/Narzo 30 4G ONLY")
-      ) {
-        boldTitle = true;
-      }
-    });
-
-    return "";
-  };
-
-  const validateTitle = (): string => {
-    const validTitles = {
-      RM6785:
-        "for Realme 6/6i(Indian)/6s/7/Narzo/Narzo 20 Pro/Narzo 30 4G [STABLE/BETA/ALPHA]",
-      nemo: "for Realme 6/6i(Indian)/6s/Narzo ONLY [STABLE/BETA/ALPHA]",
-      RMX2001: "for Realme 6/6i(Indian)/6s/Narzo ONLY [STABLE/BETA/ALPHA]",
-      salaa: "for Realme 7/Narzo 20 Pro/Narzo 30 4G ONLY [STABLE/BETA/ALPHA]",
-      RMX2151: "for Realme 7/Narzo 20 Pro/Narzo 30 4G ONLY [STABLE/BETA/ALPHA]",
-    };
-    let errorMessage = "";
-    const titleNewlines = text
-      .slice(
-        text.lastIndexOf(hashtags[hashtags.length - 1]) +
-          hashtags[hashtags.length - 1]?.length,
-      )
-      .slice(
-        0,
-        text
-          .slice(
-            text.lastIndexOf(hashtags[hashtags.length - 1]) +
-              hashtags[hashtags.length - 1]?.length,
-          )
-          .search(/\S/),
-      )
-      .match(/\n/g);
-
-    let title: string | null;
-    switch (device) {
-      case "RM6785":
-        title =
-          text.match(
-            /.* for Realme 6\/6i\(Indian\)\/6s\/7\/Narzo\/Narzo 20 Pro\/Narzo 30 4G \[(STABLE|BETA|ALPHA)\]/,
-          )?.[0] ?? null;
-        break;
-      case "nemo":
-      case "RMX2001":
-        title =
-          text.match(
-            /.* for Realme 6\/6i\(Indian\)\/6s\/Narzo ONLY \[(STABLE|BETA|ALPHA)\]/,
-          )?.[0] ?? null;
-        break;
-      case "salaa":
-      case "RMX2151":
-        title =
-          text.match(
-            /.* for Realme 7\/Narzo 20 Pro\/Narzo 30 4G ONLY \[(STABLE|BETA|ALPHA)\]/,
-          )?.[0] ?? null;
-        break;
-      case null:
-        return "\nTitle:\n- Cannot be validated because of hashtag errors\n";
-      default:
-        title = null;
-    }
-
-    if (!title) {
-      return `\nTitle:\n- No title or invalid title found. Based on your hashtag, it should be ${validTitles[device as keyof typeof validTitles]}\n`;
-    }
-
-    if (titleNewlines?.length !== 2) {
-      errorMessage += "- Missing two newlines before the title\n";
-    }
-
-    if (!boldTitle) {
-      errorMessage += "- Missing bold format on title\n";
-    }
-
-    return errorMessage ? `\n## Title:\n${errorMessage}` : "";
-  };
-
-  const validateBuildInfo = (): string => {
-    let errorMessage = "";
-    let type: string;
-    if (KERNEL) {
-      type = "Kernel";
-    } else {
-      type = "Android";
-    }
-
-    const infoPattern = `(.+)\n• Author:(.+)?\n• ${type} version:(.+)?\n• Build date:(.+)?`;
-    if (!text.match(new RegExp(infoPattern, "i"))) {
-      return "\n## Build info:\n- Invalid build info section.\n";
-    }
-
-    if (!text.match(new RegExp(infoPattern))) {
-      errorMessage += "- Incorrect case\n";
-    }
-
-    if (!text.match(/(.+)\n• Author: (.+)/)) {
-      errorMessage += "- Invalid author info\n";
-    }
-
-    if (!text.match(new RegExp(`\n• ${type} version: (.+)`))) {
-      errorMessage += `- Invalid ${type} version info\n`;
-    }
-
-    if (
-      !text.match(
-        /\n• Build date: (0?[1-9]|[12][0-9]|3[01])-(0?[1-9]|1[0-2])-\d{4}/,
-      )
-    ) {
-      errorMessage += "- Invalid build date info (Required format: DD-MM-YY)\n";
-    }
-
-    return errorMessage ? `\n## Build info:\n${errorMessage}` : "";
-  };
-
-  const validateChangelogBugs = (): string => {
-    let errorMessage = "";
-    const matchPattern =
-      "\n\nChangelog\n(.+\n)+\nBugs\n(.+\n)+(\nNotes\n(.+\n)+)?";
-
-    if (!text.match(new RegExp(matchPattern, "i"))) {
-      return "Changelog/Bugs:\n- Invalid Changelog/Bugs section.";
-    }
-
-    if (!text.match(new RegExp(matchPattern))) {
-      errorMessage += "- Incorrect case.\n";
-    } else {
-      const checks = [
-        {
-          condition: !boldChangelog,
-          errorText: "Missing bold format on Changelog",
-        },
-        { condition: !boldBugs, errorText: "Missing bold format on Bugs" },
-        { condition: !boldNotes, errorText: "Missing bold format on Notes" },
-      ];
-      errorMessage += checks
-        .filter((check) => check.condition)
-        .map((check) => check.errorText)
-        .join("\n");
-    }
-
-    if (!text.match(/\n\nChangelog\n•/)) {
-      errorMessage += "- Invalid Changelog section.\n";
-    }
-
-    if (!text.match(/\nBugs\n•/)) {
-      errorMessage += "- Invalid Bugs section.\n";
-    }
-
-    if (text.match(/\nNote/i)) {
-      if (!text.match(/\nNotes\n•/)) {
-        errorMessage += "- Invalid notes section.\n";
-      }
-    }
-
-    return errorMessage ? `\n## Changelog/Bugs:\n${errorMessage}` : "";
-  };
-
-  const validateDownloads = (): string => {
-    let errorMessage = "";
-    let matchPattern =
-      "\n\nDownloads\n• Build type:(.+)?\n• File size:(.+)?\n• Download\n";
-
-    if (KERNEL) {
-      matchPattern = "\n\nDownloads\n• File size:(.+)?\n• Download\n";
-    }
-
-    if (!text.match(new RegExp(matchPattern, "i"))) {
-      return "\n## Downloads:\n- Invalid Downloads section.\n";
-    }
-
-    if (!text.match(new RegExp(matchPattern))) {
-      errorMessage += "- Incorrect case.\n";
-    } else if (!boldDownloads) {
-      errorMessage += "- Missing bold format on Downloads.\n";
-    }
-
-    if (!KERNEL && !text.match(/(.+)\n• Build type: (.+)/)) {
-      errorMessage += "- Invalid build type\n";
-    }
-
-    if (!text.match(/(.+)\n• File size: (.+)/)) {
-      errorMessage += "- Invalid file size\n";
-    }
-
-    return errorMessage ? `\n## Downloads:\n${errorMessage}` : "";
-  };
-
-  const validateFooter = (): string => {
-    let errorMessage = "";
-    let matchPattern: string;
-    if (KERNEL) {
-      matchPattern = "\nSources\nSupport group";
-    } else {
-      matchPattern = "\nSources\nScreenshots\nSupport group";
-    }
-
-    if (!text.match(new RegExp(matchPattern, "i"))) {
-      return (
-        `Footer:\n- Invalid footer section.` +
-        `\n  Should be written exactly like this:${matchPattern}`
-      );
-    }
-
-    if (!text.match(new RegExp(matchPattern))) {
-      errorMessage += "- Incorrect case.\n";
-      errorMessage += `  Correct usage:${matchPattern}`;
-    }
-
-    return errorMessage ? `\n## Footer:\n${errorMessage}` : "";
-  };
-
-  const errors = `\n${validateHashtags()}${validateBold()}${validateTitle()}
-${validateBuildInfo()}${validateChangelogBugs()}${validateDownloads()}
-${validateFooter()}`;
+  const errors = [
+    hashtagErrors,
+    validateTitle(text, hashtags, device, bold.title),
+    validateBuildInfo(text, kernel),
+    validateChangelogBugs(text, bold),
+    validateDownloads(text, kernel, bold.downloads),
+    validateFooter(text, kernel),
+  ]
+    .filter((part) => part.trim())
+    .join("\n");
 
   const lintStatus = !errors.trim();
   const lintResult = lintStatus
     ? "# Seems good 🤌\nBot approves"
-    : `# ERRORS\n${errors}`;
+    : `# ERRORS\n\n${errors}`;
 
   logger.debug(
-    `lintTelegramPost: kernel=${KERNEL} status=${lintStatus ? "pass" : "fail"} hashtags=${hashtags.length}`,
+    `lintTelegramPost: kernel=${kernel} status=${lintStatus ? "pass" : "fail"} hashtags=${hashtags.length}`,
   );
 
   return [lintResult, lintStatus];
