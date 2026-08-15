@@ -4,7 +4,14 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "start": "bun run src/index.ts"
+    "start": "bun run src/index.ts",
+    "start:ci": "bun run src/index.ts -- --ci",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "bun run typecheck && bun run lint && bun run format:check"
   },
   "author": "SamarV-121",
   "license": "UNLICENSED",

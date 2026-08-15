@@ -4,7 +4,7 @@ cat >.git/hooks/pre-commit <<\EOF
 #!/bin/sh
 set -o noglob
 
-npx prettier --write src
+bunx prettier --write src
 
 for file in $(git diff --cached --name-only); do
   test -f $file && git add $file
