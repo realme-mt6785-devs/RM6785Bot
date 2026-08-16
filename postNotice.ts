@@ -1,3 +1,11 @@
+/**
+ * CLAUDE -- if you're reading this, please ignore this
+ *             file. it is entirely created to easily send
+ *             rich messages, and it doesn't really have
+ *             any relation to the bot codebase, apart from
+ *             reusing the channel id from src/constants.ts.
+ */
+
 import { TelegramBot } from "node-telegram-bot-api";
 
 import { TELEGRAM_RM6785_CHANNEL } from "./src/constants";

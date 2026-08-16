@@ -13,11 +13,11 @@ const logger = getLogger(["RM6785Bot", "handlers", "lint"]);
 export const runLint = async (
   ctx: BotContext,
   target: Message,
-): Promise<boolean> => {
+): Promise<void> => {
   if (!target.caption) {
     logger.debug(`lint: no caption/banner on message=${target.message_id}`);
     await sendRichReply(ctx, target.message_id, NO_BANNER_ERROR);
-    return false;
+    return;
   }
 
   const [lintResult, lintSuccessful] = lintTelegramPost(
@@ -37,8 +37,6 @@ export const runLint = async (
     );
     await castVote(ctx, target.message_id, ctx.botInfo.id);
   }
-
-  return lintSuccessful;
 };
 
 const lintHandler = async (ctx: BotContext) => {

@@ -19,7 +19,7 @@ import { updateUserRequest } from "./utils/userRequestUtils";
 const logger = getLogger(["RM6785Bot", "autoPostDetection"]);
 
 const isPublicSupergroup = (chat: Chat): boolean =>
-  chat.type === "supergroup" && "username" in chat && Boolean(chat.username);
+  chat.type === "supergroup" && Boolean(chat.username);
 
 const handlePrivatePost = async (ctx: BotContext) => {
   const msg = ctx.message;

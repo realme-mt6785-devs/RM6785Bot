@@ -158,7 +158,7 @@ const validateTitle = (
     );
   }
 
-  const title = text.match(TITLE_PATTERNS[device])?.[0] ?? null;
+  const title = text.match(TITLE_PATTERNS[device])?.[0];
 
   if (!title) {
     return section(

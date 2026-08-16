@@ -143,14 +143,15 @@ for (const handlerFile of handlerFiles) {
     try {
       await commandHandler(ctx);
     } catch (error) {
+      const err = error as Error;
       logger.error(
-        `handler '${handler.command}' threw: ${(error as Error).stack ?? (error as Error).message}`,
+        `handler '${handler.command}' threw: ${err.stack ?? err.message}`,
       );
 
       try {
         await replyToMessage(
           ctx,
-          `Something went wrong while running that command: ${(error as Error).message}`,
+          `Something went wrong while running that command: ${err.message}`,
         );
       } catch (replyError) {
         logger.error(
