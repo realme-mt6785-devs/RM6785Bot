@@ -1,67 +1,50 @@
+import type { Message } from "node-telegram-bot-api";
+
 import { getLogger } from "@logtape/logtape";
 
 import type { BotContext, HandlerDescriptor } from "../types";
 
-import lintTelegramPost from "../utils/lintUtils";
-import { handler as voteHandler } from "./vote";
+import { sendRichReply } from "../utils/contextUtils";
+import lintTelegramPost, { NO_BANNER_ERROR } from "../utils/lintUtils";
+import { castVote } from "./vote";
 
 const logger = getLogger(["RM6785Bot", "handlers", "lint"]);
+
+export const runLint = async (
+  ctx: BotContext,
+  target: Message,
+): Promise<boolean> => {
+  if (!target.caption) {
+    logger.debug(`lint: no caption/banner on message=${target.message_id}`);
+    await sendRichReply(ctx, target.message_id, NO_BANNER_ERROR);
+    return false;
+  }
+
+  const [lintResult, lintSuccessful] = lintTelegramPost(
+    target.caption,
+    target.caption_entities ?? [],
+  );
+
+  logger.info(
+    `lint: message=${target.message_id} lint ${lintSuccessful ? "passed" : "failed"}`,
+  );
+
+  await sendRichReply(ctx, target.message_id, lintResult);
+
+  if (lintSuccessful) {
+    logger.debug(
+      `lint: auto-casting bot vote for message=${target.message_id}`,
+    );
+    await castVote(ctx, target.message_id, ctx.botInfo.id);
+  }
+
+  return lintSuccessful;
+};
 
 const lintHandler = async (ctx: BotContext) => {
   if (!ctx.message.reply_to_message) return;
 
-  const replyMsg = ctx.message.reply_to_message;
-
-  if (!("caption" in replyMsg) || !replyMsg.caption) {
-    logger.debug(
-      `lint: no caption/banner on replied message=${replyMsg.message_id}`,
-    );
-    await ctx.bot.sendRichMessage(
-      ctx.message.chat.id,
-      {
-        markdown:
-          "# ERROR: No ROM banner was found. Please provide a banner for the ROM.",
-      },
-      {
-        reply_parameters: { message_id: replyMsg.message_id },
-      },
-    );
-    return;
-  }
-
-  const [lintResult, lintSuccessful] = lintTelegramPost(
-    replyMsg.caption,
-    "caption_entities" in replyMsg
-      ? ((replyMsg as any).caption_entities ?? [])
-      : [],
-  );
-
-  logger.info(
-    `lint: message=${replyMsg.message_id} lint ${lintSuccessful ? "passed" : "failed"}`,
-  );
-
-  await ctx.bot.sendRichMessage(
-    ctx.message.chat.id,
-    { markdown: lintResult },
-    {
-      reply_parameters: { message_id: replyMsg.message_id },
-    },
-  );
-
-  if (lintSuccessful) {
-    logger.debug(
-      `lint: auto-casting bot vote for message=${replyMsg.message_id}`,
-    );
-    const voteCommandCtx: BotContext = {
-      ...ctx,
-      message: {
-        ...ctx.message,
-        from: { ...ctx.message.from!, id: ctx.botInfo.id },
-      },
-    };
-
-    await voteHandler.execute(voteCommandCtx);
-  }
+  await runLint(ctx, ctx.message.reply_to_message);
 };
 
 const handler: HandlerDescriptor = {

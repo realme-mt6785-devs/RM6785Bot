@@ -104,3 +104,16 @@ export const isAuthorized = async (userId: number): Promise<boolean> => {
   const authorizedUsers = await getAuthorizedUsers();
   return authorizedUsers.some((u) => u.id === userId);
 };
+
+export const formatAuthorizedUserList = async (): Promise<string> => {
+  const authorizedUsers = await getAuthorizedUsers();
+  logger.debug(
+    `formatAuthorizedUserList: listing ${authorizedUsers.length} authorized users`,
+  );
+
+  const mentions = authorizedUsers.map(
+    (user) => `[${user.name}](tg://user?id=${user.id})`,
+  );
+
+  return `Authorized users:\n${mentions.join("\n")}\n`;
+};
