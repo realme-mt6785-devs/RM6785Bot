@@ -11,13 +11,9 @@ const deleteHandler = async (ctx: BotContext): Promise<void> => {
   if (!ctx.message.text) return;
 
   const msgUrl = ctx.message.text.split(" ")[1];
-  if (!msgUrl) {
-    await replyToMessage(ctx, "Please provide a message URL.");
-    return;
-  }
-  const msgId = parseInt(msgUrl.split("/").pop() || "", 10);
+  const msgId = Number.parseInt(msgUrl.split("/").pop() || "", 10);
 
-  if (isNaN(msgId) || msgId <= 0) {
+  if (!Number.isFinite(msgId) || msgId <= 0) {
     logger.debug(`delete: invalid message id parsed from url=${msgUrl}`);
     await replyToMessage(ctx, "Invalid message id");
     return;

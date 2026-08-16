@@ -8,14 +8,17 @@ const logger = getLogger(["RM6785Bot", "handlers", "help"]);
 
 const helpHandler = async (ctx: BotContext) => {
   const { registeredCommands } = await import("../index");
-  registeredCommands.sort((a, b) => b.priority - a.priority);
-  logger.debug(`help: listing ${registeredCommands.length} commands`);
-  let helpMessage = "Available commands:\n\n";
+  const commands = [...registeredCommands].sort(
+    (a, b) => b.priority - a.priority,
+  );
 
-  registeredCommands.forEach((command) => {
-    helpMessage += `${command.command} - ${command.description}\n`;
-  });
-  await replyToMessage(ctx, helpMessage);
+  logger.debug(`help: listing ${commands.length} commands`);
+
+  const lines = commands.map(
+    (command) => `${command.command} - ${command.description}`,
+  );
+
+  await replyToMessage(ctx, `Available commands:\n\n${lines.join("\n")}\n`);
 };
 
 const handler: HandlerDescriptor = {

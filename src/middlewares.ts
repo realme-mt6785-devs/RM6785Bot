@@ -56,11 +56,9 @@ export const replyToMessageMiddleware: Middleware = async (ctx, next) => {
 };
 
 export const checkDataMiddleware: Middleware = async (ctx, next) => {
-  if (!ctx.message.text) return;
+  const data = ctx.message.text?.split(" ")[1];
 
-  const msgText = ctx.message.text.split(" ");
-
-  if (!msgText[1]) {
+  if (!data) {
     logger.debug("checkDataMiddleware: no data provided, rejecting");
     await replyToMessage(ctx, "No data is provided");
     return;
