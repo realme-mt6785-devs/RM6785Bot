@@ -1,3 +1,5 @@
+import type { Message } from "node-telegram-bot-api";
+
 import { configure, getConsoleSink, getLogger } from "@logtape/logtape";
 import { prettyFormatter } from "@logtape/pretty";
 import TelegramBot from "node-telegram-bot-api";
@@ -7,20 +9,22 @@ import { fileURLToPath } from "node:url";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
-import type { RegisteredCommand, HandlerDescriptor, BotContext } from "./types";
+import type { BotContext, HandlerDescriptor, RegisteredCommand } from "./types";
 
 import setupAutoPostDetection from "./autoPostDetection";
 import { BOT_TOKEN } from "./config";
+import { CI_POLL_INTERVAL, TEST_MODE } from "./constants";
 import * as Middleware from "./middlewares";
 import { replyToMessage } from "./utils/contextUtils";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const argv = yargs(hideBin(process.argv)).argv;
-
-export const bot = new TelegramBot(BOT_TOKEN, { polling: true });
-
-const me = await bot.getMe();
-const botInfo = { id: me.id };
+const argv = yargs(hideBin(process.argv))
+  .option("ci", {
+    type: "boolean",
+    default: false,
+    describe: "Watch the remote repository and restart on new commits",
+  })
+  .parseSync();
 
 await configure({
   sinks: { console: getConsoleSink({ formatter: prettyFormatter }) },
@@ -45,7 +49,36 @@ await configure({
 
 const logger = getLogger(["RM6785Bot"]);
 
+process.on("unhandledRejection", (reason) => {
+  logger.error(
+    `unhandled rejection: ${reason instanceof Error ? reason.stack : String(reason)}`,
+  );
+});
+
+process.on("uncaughtException", (error) => {
+  logger.error(`uncaught exception: ${error.stack ?? error.message}`);
+});
+
+export const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+
+bot.on("polling_error", (error: Error) => {
+  logger.error(`polling error: ${error.message}`);
+});
+
+bot.on("error", (error: Error) => {
+  logger.error(`bot error: ${error.message}`);
+});
+
+const me = await bot.getMe();
+const botInfo = { id: me.id };
+
 logger.info(`authenticated as bot id=${me.id} username=@${me.username}`);
+
+if (TEST_MODE) {
+  logger.warn(
+    "TEST_MODE is enabled: the approval vote requirement is bypassed for every post",
+  );
+}
 
 function compose(
   middlewares: Middleware.Middleware[],
@@ -61,6 +94,9 @@ function compose(
     await dispatch(0);
   };
 }
+
+const escapeRegExp = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const handlerFiles = readdirSync(`${__dirname}/handlers`).filter(
   (file) => file.endsWith(".ts") || file.endsWith(".js"),
@@ -93,86 +129,83 @@ for (const handlerFile of handlerFiles) {
   const commandHandler = compose([
     ...middlewares,
     async (ctx) => {
-      const userId = ctx.message.from?.id;
-      const chatId = ctx.message.chat.id;
       logger.info(
-        `dispatching '${handler.command}' from user=${userId ?? "unknown"} chat=${chatId}`,
+        `dispatching '${handler.command}' from user=${ctx.message.from?.id ?? "unknown"} chat=${ctx.message.chat.id}`,
       );
-      try {
-        await handler.execute(ctx);
-        logger.debug(`handler '${handler.command}' completed`);
-      } catch (error) {
-        logger.error(
-          `handler '${handler.command}' threw: ${(error as Error).message}`,
-        );
-        throw error;
-      }
+      await handler.execute(ctx);
+      logger.debug(`handler '${handler.command}' completed`);
     },
   ]);
 
-  const commands = handler.command.split(" or ");
-  commands.forEach((command) => {
-    if (command.match(/[^\w\s]/g)) {
-      bot.onText(new RegExp(`^\\${command}(?:\\s.*)?$`), async (msg) => {
-        await commandHandler({ bot, botInfo, message: msg });
-      });
-    } else {
-      bot.onText(
-        new RegExp(`^/${command}(?:@\\w+)?(?:\\s.*)?$`),
-        async (msg) => {
-          await commandHandler({ bot, botInfo, message: msg });
-        },
+  const runCommand = async (message: Message) => {
+    const ctx: BotContext = { bot, botInfo, message };
+
+    try {
+      await commandHandler(ctx);
+    } catch (error) {
+      logger.error(
+        `handler '${handler.command}' threw: ${(error as Error).stack ?? (error as Error).message}`,
       );
 
-      const prio = handler.priority ?? 0;
+      try {
+        await replyToMessage(
+          ctx,
+          `Something went wrong while running that command: ${(error as Error).message}`,
+        );
+      } catch (replyError) {
+        logger.error(
+          `failed to report the error back to chat=${message.chat.id}: ${(replyError as Error).message}`,
+        );
+      }
+    }
+  };
+
+  for (const command of handler.command.split(" or ")) {
+    const isSymbolCommand = /[^\w\s]/.test(command);
+
+    const pattern = isSymbolCommand
+      ? new RegExp(`^${escapeRegExp(command)}(?:\\s.*)?$`)
+      : new RegExp(`^/${command}(?:@\\w+)?(?:\\s.*)?$`);
+
+    bot.onText(pattern, (msg) => void runCommand(msg));
+
+    if (!isSymbolCommand) {
       registeredCommands.push({
         command: `/${command}`,
         description: handler.help,
-        priority: prio,
+        priority: handler.priority ?? 0,
       });
-
-      logger.info(`successfully registered '${command}' command`);
     }
-  });
+
+    logger.info(`successfully registered '${command}' command`);
+  }
 }
 
-bot
-  .getMyCommands()
-  .then((fetchedCommands) => {
-    const existingCommands = new Map(
-      fetchedCommands.map(({ command }) => [command, true]),
-    );
+try {
+  await bot.setMyCommands(
+    [...registeredCommands].sort((a, b) => b.priority - a.priority),
+  );
+  logger.info(`registered ${registeredCommands.length} slash commands`);
+} catch (error) {
+  logger.error(
+    `failed to register the slash commands: ${(error as Error).message}`,
+  );
+}
 
-    const commandsToRegister = registeredCommands.filter(
-      ({ command }) => !existingCommands.has(command),
-    );
-
-    if (commandsToRegister.length > 0) {
-      bot
-        .setMyCommands([...fetchedCommands, ...commandsToRegister])
-        .catch((error: Error) => {
-          logger.error(
-            `failed to register the slash commands:\n${error.message}`,
-          );
-        });
-    }
-  })
-  .catch((error: Error) => {
-    logger.error(`failed to fetch the registered commands:\n${error.message}`);
-  });
-
-bot.onText(/^\/start(?:@\w+)?(?:\s.*)?$/, async (msg) => {
+bot.onText(/^\/start(?:@\w+)?(?:\s.*)?$/, (msg) => {
   const ctx: BotContext = { bot, botInfo, message: msg };
-  await replyToMessage(
+  void replyToMessage(
     ctx,
     "Hola, amigo. I'm RM6785Bot, specially created to handle posts on the RM6785 telegram channel.\nSpank /help to know more about me",
-  );
+  ).catch((error: Error) => {
+    logger.error(`failed to answer /start: ${error.message}`);
+  });
 });
 
 setupAutoPostDetection(bot, botInfo);
 
-if ((argv as any).ci) {
+if (argv.ci) {
   logger.info("Starting the bot with CI");
   const { default: commitListener } = await import("./ci");
-  setInterval(commitListener, 5000);
+  setInterval(() => void commitListener(), CI_POLL_INTERVAL);
 }
